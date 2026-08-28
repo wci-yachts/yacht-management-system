@@ -1,0 +1,2876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>West Coast International — Charter & Sale Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --navy-950:#071522;
+  --navy-900:#0b2033;
+  --navy-800:#123049;
+  --navy-700:#1c4467;
+  --brass:#4f8a41;
+  --brass-light:#6fae5e;
+  --teal:#0b2033;
+  --teal-light:#7c93a8;
+  --paper:#fbfbfa;
+  --paper-dim:#eef1ec;
+  --ink:#12181e;
+  --ink-soft:#5c6570;
+  --line:#dde1db;
+  --white:#ffffff;
+  --danger:#a13f2e;
+  --danger-bg:#f8e8e4;
+  --warn:#96751f;
+  --warn-bg:#f6efd9;
+  --ok:#3d6b4c;
+  --ok-bg:#e6f0e8;
+  --radius:2px;
+  --shadow:0 1px 2px rgba(7,21,34,.05),0 8px 24px rgba(7,21,34,.05);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  font-size:14px;
+  line-height:1.5;
+}
+::selection{background:var(--brass-light);color:var(--navy-950);}
+
+/* ---------- layout shell ---------- */
+.app{min-height:100vh;display:flex;flex-direction:column;}
+
+.topbar{
+  background:linear-gradient(180deg,var(--navy-900),var(--navy-950));
+  color:var(--white);
+  padding:0 28px;
+  display:flex;
+  align-items:center;
+  gap:36px;
+  height:64px;
+  border-bottom:1px solid rgba(200,152,63,.35);
+  position:sticky;top:0;z-index:40;
+}
+.brand{
+  display:flex;align-items:center;gap:10px;
+  font-family:'Arial',sans-serif;
+  font-weight:700;
+  font-size:19px;
+  letter-spacing:.01em;
+  white-space:nowrap;
+}
+.brand .mark{
+  width:28px;height:28px;
+  border:1.5px solid var(--brass);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Poppins','Arial',sans-serif;
+  font-weight:600;
+  font-size:14px;color:var(--brass-light);
+  flex-shrink:0;
+}
+.brand small{
+  display:block;font-family:'Arial',sans-serif;font-weight:400;font-size:10px;
+  letter-spacing:.14em;color:var(--teal-light);text-transform:uppercase;margin-top:1px;
+}
+nav.tabs{display:flex;gap:4px;flex:1;overflow-x:auto;}
+nav.tabs button{
+  background:transparent;border:none;color:rgba(255,253,248,.65);
+  font-family:'Inter';font-weight:600;font-size:12.5px;letter-spacing:.03em;
+  padding:9px 14px;border-radius:2px;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;transition:.15s;
+}
+nav.tabs button:hover{color:var(--white);}
+nav.tabs button.active{color:var(--brass-light);border-bottom-color:var(--brass);}
+.topbar .actions{display:flex;gap:8px;flex-shrink:0;}
+
+main{flex:1;padding:26px 28px 60px;max-width:1280px;margin:0 auto;width:100%;}
+
+/* ---------- generic ui ---------- */
+.btn{
+  font-family:'Inter';font-weight:600;font-size:12.5px;letter-spacing:.02em;
+  padding:9px 16px;border-radius:var(--radius);border:1px solid transparent;
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.12s;
+}
+.btn-primary{background:var(--navy-900);color:var(--white);}
+.btn-primary:hover{background:var(--navy-800);}
+.btn-brass{background:var(--brass);color:var(--navy-950);}
+.btn-brass:hover{background:var(--brass-light);}
+.btn-ghost{background:transparent;border-color:var(--line);color:var(--ink);}
+.btn-ghost:hover{background:var(--paper-dim);}
+.btn-danger{background:transparent;border-color:var(--danger);color:var(--danger);}
+.btn-danger:hover{background:var(--danger-bg);}
+.btn-sm{padding:5px 10px;font-size:11.5px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.topbar .btn-ghost{border-color:rgba(255,253,248,.3);color:var(--white);}
+.topbar .btn-ghost:hover{background:rgba(255,253,248,.08);}
+
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{
+  font-family:'Inter';font-size:13.5px;color:var(--ink);
+  background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
+  padding:8px 10px;width:100%;
+}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--teal-light);outline-offset:0;border-color:var(--teal);}
+textarea{resize:vertical;min-height:90px;font-family:'Inter';}
+label.field-label{
+  display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-soft);margin-bottom:5px;
+}
+.field{margin-bottom:14px;}
+.field-hint{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+.row{display:grid;gap:16px;}
+.row.c2{grid-template-columns:1fr 1fr;}
+.row.c3{grid-template-columns:1fr 1fr 1fr;}
+.row.c4{grid-template-columns:1fr 1fr 1fr 1fr;}
+@media(max-width:760px){.row.c2,.row.c3,.row.c4{grid-template-columns:1fr;}}
+
+.card{
+  background:var(--white);border:1px solid var(--line);border-radius:6px;
+  box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden;
+}
+.card-head{
+  padding:16px 20px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:linear-gradient(180deg,var(--white),var(--paper-dim));
+}
+.card-head h2{
+  font-family:'Arial','Poppins',sans-serif;font-weight:700;font-size:15.5px;margin:0;color:var(--navy-900);
+  display:flex;align-items:center;gap:8px;
+}
+.card-head .eyebrow{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--brass);
+  letter-spacing:.08em;
+}
+.card-body{padding:20px;}
+
+.badge{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+}
+.badge-retail{background:#e6ebf0;color:var(--navy-800);}
+.badge-central{background:#e6efe2;color:var(--brass);}
+.badge-ok{background:var(--ok-bg);color:var(--ok);}
+.badge-warn{background:var(--warn-bg);color:var(--warn);}
+.badge-danger{background:var(--danger-bg);color:var(--danger);}
+.badge-idle{background:var(--paper-dim);color:var(--ink-soft);}
+.badge-progress{background:var(--brass);color:var(--navy-950);}
+.status-dot{
+  display:inline-block;width:9px;height:9px;border-radius:50%;flex-shrink:0;
+  box-shadow:0 0 0 1px rgba(0,0,0,.08);
+}
+.status-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;}
+
+.pill-toggle{display:inline-flex;border:1px solid var(--line);border-radius:20px;overflow:hidden;}
+.pill-toggle button{
+  border:none;background:var(--white);padding:7px 16px;font-size:12px;font-weight:600;
+  cursor:pointer;color:var(--ink-soft);
+}
+.pill-toggle button.active.retail{background:var(--navy-950);color:var(--white);}
+.pill-toggle button.active.central{background:var(--brass);color:var(--navy-950);}
+
+.rating-scale{display:flex;gap:5px;flex-wrap:wrap;}
+.rating-cell{
+  width:32px;height:32px;border-radius:6px;border:1.5px solid var(--line);background:var(--white);
+  font-family:'JetBrains Mono',monospace;font-weight:600;font-size:13px;color:var(--ink-soft);
+  cursor:pointer;transition:.12s;
+}
+.rating-cell:hover{border-color:var(--brass);color:var(--navy-900);}
+.rating-cell.active{background:var(--brass);border-color:var(--brass);color:var(--navy-950);}
+@media print{ .rating-cell{border-width:1px;} .rating-cell.active{background:#ddd !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+
+.cal-month-label{
+  font-family:'Fraunces',serif;font-weight:600;font-size:16px;color:var(--navy-900);
+  margin:4px 0 10px;
+}
+.cal-grid-head{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px;}
+.cal-headcell{
+  text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);padding:2px 6px;
+}
+.cal-week{border:1px solid var(--line);border-radius:5px;background:var(--paper);margin-bottom:5px;overflow:hidden;}
+.cal-week-daynums{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line);}
+.cal-daycell{
+  padding:3px 6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);font-weight:600;
+  border-right:1px solid var(--line);
+}
+.cal-daycell:last-child{border-right:none;}
+.cal-daycell-out{opacity:.4;background:var(--paper-dim);}
+.cal-daycell-today{background:#fdf3d9;color:var(--navy-900);}
+.cal-week-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding:3px;}
+.cal-bar{
+  display:flex;align-items:center;padding:2px 7px;font-size:10.5px;font-weight:700;color:#fff;
+  cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+.cal-bar:hover{filter:brightness(1.1);}
+.cal-bar-label{overflow:hidden;text-overflow:ellipsis;}
+@media(max-width:760px){
+  .cal-headcell{font-size:9px;}
+  .cal-bar{font-size:9.5px;}
+}
+@media print{
+  .cal-week{break-inside:avoid;}
+}
+
+.role-bar{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  background:var(--navy-950);border-radius:6px;padding:14px 18px;
+  margin-bottom:20px;box-shadow:var(--shadow);
+}
+.role-bar-label{
+  font-family:'Arial','Poppins',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--brass-light);flex-shrink:0;
+}
+.role-bar-options{display:flex;gap:10px;flex:1;flex-wrap:wrap;}
+.role-option{
+  display:flex;align-items:center;justify-content:center;gap:9px;text-align:center;
+  flex:1;min-width:160px;
+  background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.14);
+  border-radius:5px;padding:12px 14px;cursor:pointer;transition:.14s;
+}
+.role-option:hover{background:rgba(255,255,255,.08);}
+.role-option.active{background:var(--white);border-color:var(--white);}
+.role-option-check{
+  width:18px;height:18px;border-radius:50%;flex-shrink:0;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  border:1.5px solid rgba(255,255,255,.4);font-size:11px;font-weight:700;color:var(--white);
+}
+.role-option.active .role-option-check{border-color:var(--brass);background:var(--brass);color:var(--navy-950);}
+.role-option-text{display:flex;flex-direction:column;gap:2px;}
+.role-option-title{font-family:'Arial','Poppins',sans-serif;font-weight:700;font-size:14.5px;color:rgba(255,255,255,.9);}
+.role-option.active .role-option-title{color:var(--navy-950);}
+.role-option-desc{font-size:11.5px;line-height:1.4;color:rgba(255,255,255,.55);}
+.role-option.active .role-option-desc{color:var(--ink-soft);}
+
+table{width:100%;border-collapse:collapse;}
+th{
+  text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:700;padding:9px 12px;border-bottom:1.5px solid var(--line);
+  background:var(--paper-dim);
+}
+th.sortable-col{cursor:pointer;user-select:none;}
+th.sortable-col:hover{color:var(--navy-900);}
+@media print{ th.sortable-col{cursor:default;} }
+td{padding:11px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr.clickable:hover{background:var(--paper-dim);cursor:pointer;}
+.mono{font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+.amount{font-family:'JetBrains Mono',monospace;font-weight:600;}
+.muted{color:var(--ink-soft);}
+
+.empty-state{
+  text-align:center;padding:60px 20px;color:var(--ink-soft);
+}
+.empty-state .mark-big{
+  width:52px;height:52px;border:2px solid var(--line);border-radius:50%;margin:0 auto 16px;
+  display:flex;align-items:center;justify-content:center;font-family:'Poppins','Arial',sans-serif;font-weight:600;font-size:18px;color:var(--line);
+}
+
+.checklist-item{
+  display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);
+}
+.checklist-item:last-child{border-bottom:none;}
+.checklist-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--teal);flex-shrink:0;}
+.checklist-item label{font-size:13px;flex:1;}
+.checklist-item input[type=text]{flex:1;}
+
+.attach-remove{background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;}
+.drag-handle{cursor:grab;font-size:16px;color:var(--ink-soft);display:inline-block;padding:2px 4px;user-select:none;touch-action:none;}
+.drag-handle:active{cursor:grabbing;}
+tr.dragging-row{opacity:.45;}
+tr.drag-insert-before{box-shadow: inset 0 3px 0 0 var(--brass);}
+tr.drag-insert-after{box-shadow: inset 0 -3px 0 0 var(--brass);}
+@media print{ .drag-handle{display:none;} }
+
+.divider-label{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--teal);margin:22px 0 12px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;
+}
+.divider-label:first-child{margin-top:0;padding-top:0;border-top:none;}
+
+.calc-pair{display:grid;grid-template-columns:100px 1fr auto;gap:10px;align-items:center;}
+.override-flag{font-size:10px;color:var(--brass);font-weight:700;letter-spacing:.03em;}
+
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+@media(max-width:900px){.dash-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-card{
+  background:var(--white);border:1px solid var(--line);border-radius:6px;padding:16px 18px;
+  box-shadow:var(--shadow);
+}
+.stat-card .num{font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--navy-900);}
+.stat-card.danger .num{color:var(--danger);}
+.stat-card.warn .num{color:var(--warn);}
+.stat-card .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;margin-top:2px;}
+
+.toast{
+  position:fixed;bottom:22px;right:22px;background:var(--navy-950);color:var(--white);
+  padding:12px 18px;border-radius:5px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.25);
+  z-index:200;display:flex;align-items:center;gap:10px;border-left:3px solid var(--brass);
+  animation:toastin .2s ease;
+}
+@keyframes toastin{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+.search-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+.search-bar input[type=text]{max-width:280px;}
+.search-bar select{max-width:200px;}
+
+.file-input-wrap{display:none;}
+
+@media print{
+  .topbar,.no-print{display:none!important;}
+  body{background:#fff;}
+  .card{box-shadow:none;border:1px solid #ccc;}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* =========================================================
+   YOCHARTER — FILE MANAGER
+   Single-file client-side application. All data kept in
+   memory for the session; use Export / Import to persist
+   between sessions (and best-effort local autosave).
+   ========================================================= */
+
+/* ---------------- state ---------------- */
+let STATE = {
+  cases: [],
+  feedback: [],
+  feedbackSync: {formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''},
+  view: { tab: 'dashboard', caseId: null }
+};
+let nextCaseSeq = 1;
+const JOTFORM_URL = 'https://form.jotform.com/wciyachts/your-luxury-charter-experience'; // fallback shown until a custom link is set below
+
+/* ---------------- multi-user mode (optional) ----------------
+   Fill these in to turn this file into a shared, login-protected app for
+   you and a colleague — both of you will read and write the SAME data,
+   stored in Supabase instead of just this browser's local storage.
+   Leave them as-is (with "YOUR-PROJECT-REF") to keep using this file
+   exactly as before, purely local to this browser, no login needed. */
+const SUPABASE_URL = 'https://qwboxtgjdvipnwgnousd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3Ym94dGdqZHZpcG53Z25vdXNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5NDM5ODMsImV4cCI6MjEwMzUxOTk4M30.FAZjsntbrpnLmBvRH6fDyCNV0-t02qREPjsDe2RWwLQ';
+const MULTIUSER_ENABLED = SUPABASE_URL.indexOf('YOUR-PROJECT-REF') === -1 && !!window.supabase;
+const supabaseClient = MULTIUSER_ENABLED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let currentUser = null;
+let serverPushTimer = null;
+
+const STORAGE_KEY = 'yocharter_manager_data_v1';
+
+function tryLoadLocal(){
+  try{
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && Array.isArray(parsed.cases)){
+        STATE.cases = normalizeCases(parsed.cases);
+        nextCaseSeq = parsed.nextCaseSeq || (STATE.cases.length + 1);
+      }
+      if(parsed && Array.isArray(parsed.feedback)){
+        STATE.feedback = normalizeFeedbackList(parsed.feedback);
+      }
+      if(parsed && parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
+        STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
+      }
+    }
+  }catch(e){ /* storage unavailable — session-only mode */ }
+}
+function tryPersistLocal(){
+  try{
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync}));
+  }catch(e){ /* ignore — export/import remains the reliable path */ }
+  schedulePushToServer();
+}
+
+/* ---------------- multi-user sync (Supabase) ---------------- */
+function schedulePushToServer(){
+  if(!MULTIUSER_ENABLED || !currentUser) return;
+  clearTimeout(serverPushTimer);
+  serverPushTimer = setTimeout(pushToServer, 900); // debounced so rapid edits don't hammer the server
+}
+async function pushToServer(){
+  if(!MULTIUSER_ENABLED || !currentUser) return;
+  try{
+    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync};
+    const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
+    if(error) throw error;
+  }catch(e){
+    console.error('Sync to server failed', e);
+    showToast('Could not sync to server — your changes are saved locally only for now.', 'error');
+  }
+}
+async function loadFromServer(){
+  if(!MULTIUSER_ENABLED) return false;
+  try{
+    const { data, error } = await supabaseClient.from('workspace').select('data').eq('id','default').single();
+    if(error) throw error;
+    const parsed = data && data.data;
+    if(parsed && Array.isArray(parsed.cases)){
+      STATE.cases = normalizeCases(parsed.cases);
+      nextCaseSeq = parsed.nextCaseSeq || (STATE.cases.length + 1);
+    }
+    if(parsed && Array.isArray(parsed.feedback)){
+      STATE.feedback = normalizeFeedbackList(parsed.feedback);
+    }
+    if(parsed && parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
+      STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
+    }
+    return true;
+  }catch(e){
+    console.error('Load from server failed', e);
+    showToast('Could not load from server — showing your last locally-saved data.', 'error');
+    return false;
+  }
+}
+function subscribeToServerChanges(){
+  if(!MULTIUSER_ENABLED) return;
+  supabaseClient
+    .channel('workspace-changes')
+    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'workspace', filter:'id=eq.default'}, ()=>{
+      // Don't yank the page out from under someone mid-keystroke — they'll pick up
+      // the colleague's changes automatically as soon as they next save something,
+      // since every save reloads-then-merges via the normal render cycle anyway.
+      const active = document.activeElement;
+      const isTyping = active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName);
+      if(isTyping) return;
+      loadFromServer().then(ok=>{ if(ok) render(); });
+    })
+    .subscribe();
+}
+
+function renderLoginGate(errorMsg){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--navy-900),var(--navy-950));padding:20px;">
+      <div style="background:var(--white);border-radius:8px;padding:36px 32px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="width:44px;height:44px;border:1.5px solid var(--brass);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Poppins',sans-serif;font-weight:600;font-size:18px;color:var(--brass);margin:0 auto 10px;">W</div>
+          <div style="font-family:'Arial',sans-serif;font-weight:700;font-size:17px;color:var(--navy-900);">West Coast International</div>
+          <div style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-top:2px;">Charter &amp; Sale Management System</div>
+        </div>
+        <div class="field"><label class="field-label">Email</label><input type="text" id="login-email" autocomplete="username"></div>
+        <div class="field" style="margin-top:12px;"><label class="field-label">Password</label><input type="password" id="login-password" autocomplete="current-password"></div>
+        <button class="btn btn-brass btn-sm" id="login-submit" style="width:100%;margin-top:18px;padding:11px 0;font-size:13px;">Sign In</button>
+        <div id="login-error" style="color:var(--danger);font-size:12px;margin-top:12px;text-align:center;${errorMsg?'':'display:none;'}">${errorMsg?esc(errorMsg):''}</div>
+      </div>
+    </div>
+  `;
+  document.getElementById('login-submit').addEventListener('click', doLogin);
+  document.getElementById('login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  document.getElementById('login-email').focus();
+}
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if(!email || !password){ renderLoginGate('Enter your email and password.'); return; }
+  const submitBtn = document.getElementById('login-submit');
+  submitBtn.disabled = true; submitBtn.textContent = 'Signing in…';
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if(error){ renderLoginGate(error.message); return; }
+  // supabaseClient.auth.onAuthStateChange (registered at init) picks this up from here.
+}
+function signOut(){
+  if(supabaseClient) supabaseClient.auth.signOut();
+}
+
+/* ---------------- helpers ---------------- */
+function uid(){ return 'c' + Math.random().toString(36).slice(2,10); }
+/* Local-date-safe "YYYY-MM-DD" formatter. Deliberately NOT using
+   date.toISOString() here: that converts through UTC, and for any positive
+   UTC-offset timezone (e.g. Italy) a local midnight can roll back to the
+   previous day once converted — silently shifting every date in the app
+   back by one. Reading the local Y/M/D components directly avoids that. */
+function toISODate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function fmtMoney(n){
+  if(n===null||n===undefined||isNaN(n)) return '—';
+  return '€' + Number(n).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function fmtDate(d){
+  if(!d) return '—';
+  const dt = new Date(d+'T00:00:00');
+  if(isNaN(dt)) return d;
+  return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+function addDays(dateStr, days){
+  if(!dateStr) return '';
+  const dt = new Date(dateStr+'T00:00:00');
+  dt.setDate(dt.getDate()+days);
+  return toISODate(dt);
+}
+function subMonths(dateStr, months){
+  if(!dateStr) return '';
+  const dt = new Date(dateStr+'T00:00:00');
+  dt.setMonth(dt.getMonth()-months);
+  return toISODate(dt);
+}
+function daysFromToday(dateStr){
+  if(!dateStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dt = new Date(dateStr+'T00:00:00');
+  return Math.round((dt-today)/86400000);
+}
+/* Native date/time pickers get closed by any DOM re-render while they're open,
+   and re-rendering mid-keystroke on a partially-typed date wipes what was
+   typed. So date/time fields commit on 'change' (once a full value is picked)
+   rather than on every 'input'. Checkboxes/selects also use 'change'. */
+function liveEventFor(el){
+  if(el.tagName==='SELECT') return 'change';
+  if(el.tagName==='INPUT' && ['date','time','checkbox','radio'].includes(el.type)) return 'change';
+  return 'input';
+}
+/* Only text-like inputs (and textarea) support selectionStart/selectionEnd —
+   number/date/time throw if you touch it. Reading/restoring it on those types
+   is what caused digits to reverse while typing (cursor got force-reset to
+   position 0 on every keystroke's re-render). */
+function supportsSelectionRange(el){
+  if(!el) return false;
+  if(el.tagName==='TEXTAREA') return true;
+  return el.tagName==='INPUT' && ['text','search','url','tel','password'].includes(el.type);
+}
+
+function esc(s){
+  return String(s===undefined||s===null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- data model ---------------- */
+function newCase(fileType){
+  nextCaseSeq++;
+  const type = fileType==='sale' ? 'sale' : 'charter';
+  return {
+    id: uid(),
+    type, // 'charter' | 'sale'
+    caseNumber: '',
+    clientName: '',
+    yachtName: '',
+    personInCharge: '',
+    role: 'retail', // 'retail' | 'central'
+    status: 'negotiation', // 'negotiation'|'option'|'contract'|'confirmed'|'closed' — see getEffectivePhase() for the automatic in_progress/completed derivation
+    charterStartDate: '',
+    charterStartTime: '12:00',
+    charterEndDate: '',
+    charterEndTime: '12:00',
+    departureLocation: '',
+    arrivalLocation: '',
+    contractSignDate: toISODate(new Date()),
+    retailBrokerName: '', retailAgencyName: 'West Coast International', retailCommissionPct: type==='sale' ? '' : 15, retailCommissionOverride: null,
+    caBrokerName: '', caAgencyName: '', caCommissionPct: type==='sale' ? '' : 5, caCommissionOverride: null,
+    charterRate: '',
+    vatPct: 22, vatOverride: null,
+    saleVatPaid: '', // 'paid' | 'unpaid' — sale files only
+    saleDepositPct: 50, // % of sale price due as deposit/confirmatory earnest — sale files only, editable
+    apaPct: 35, apaOverride: null,
+    deliveryFee: '',
+    apaRefundInAmount: '',
+    apaRefundOutAmount: '',
+    crewTipReceivedAmount: '',
+    crewTipForwardAmount: '',
+    saleDueDates: {}, // key -> 'YYYY-MM-DD' — manually-set payment due dates, sale files only
+    customPayments: [], // {id, description, reason, direction:'in'|'out', amount, due, status, paidDate}
+    paymentOverrides: {}, // key -> {amount:'', note:''} — actual amount received/paid + a note, when it differs from the calculated one
+    hiddenPayments: {}, // key -> true for preset payments removed from this file
+    paymentOrder: [], // custom display order for preset payments (list of keys); anything not listed falls back to the default order
+    reconciliation: {amount:'', direction:'out', note:''},
+    payments: {}, // key -> {status:'pending'|'paid', paidDate:''}
+    attachments: {
+      contract:false, passport:false, ourInvoice:false, otherBrokerInvoice:false,
+      prefListSent:false, prefListSentToCrew:false, prefListReceived:false,
+      addendums: []
+    },
+    notes: ''
+  };
+}
+
+function getCase(id){ return STATE.cases.find(c=>c.id===id); }
+
+/* Fills in any field missing from an older/incomplete case record (e.g. saved
+   by an earlier version of this app) with a safe default, without touching
+   any value that is already present. Prevents a stale record from breaking
+   the detail view when opened. */
+function normalizeCase(raw){
+  const base = newCase();
+  const c = Object.assign({}, base, raw||{});
+  c.id = raw && raw.id ? raw.id : base.id;
+  c.attachments = Object.assign({}, base.attachments, (raw&&raw.attachments)||{});
+  c.attachments.addendums = Array.isArray(c.attachments.addendums) ? c.attachments.addendums : [];
+  c.customPayments = Array.isArray(raw && raw.customPayments) ? raw.customPayments : [];
+  c.hiddenPayments = (raw && typeof raw.hiddenPayments==='object' && raw.hiddenPayments) ? raw.hiddenPayments : {};
+  c.paymentOrder = Array.isArray(raw && raw.paymentOrder) ? raw.paymentOrder : [];
+  c.customPayments = (c.customPayments||[]).map(cp=> cp.id ? cp : Object.assign({}, cp, {id: uid()}));
+  c.paymentOverrides = (raw && typeof raw.paymentOverrides==='object' && raw.paymentOverrides) ? raw.paymentOverrides : {};
+  c.reconciliation = Object.assign({}, base.reconciliation, (raw&&raw.reconciliation)||{});
+  c.payments = (raw && typeof raw.payments==='object' && raw.payments) ? raw.payments : {};
+  c.type = (raw && raw.type==='sale') ? 'sale' : 'charter';
+  c.saleDueDates = (raw && typeof raw.saleDueDates==='object' && raw.saleDueDates) ? raw.saleDueDates : {};
+  return c;
+}
+function normalizeCases(list){
+  return (Array.isArray(list)?list:[]).map(normalizeCase);
+}
+
+/* ---------------- client feedback (Jotform: "Your Luxury Charter Experience") ---------------- */
+const RATING_FIELDS = [
+  ['yacht','The Yacht'],
+  ['crew','The Crew'],
+  ['service','Service & attention to detail'],
+  ['communication','Communication before the charter'],
+  ['organisation','Organisation & arrangements'],
+  ['itinerary','Itinerary & destinations'],
+  ['food','Food & dining experience'],
+  ['watertoys','Water toys & activities'],
+  ['overall','Overall charter experience']
+];
+function newFeedback(){
+  const ratings = {};
+  RATING_FIELDS.forEach(([k])=>{ ratings[k] = ''; });
+  return {
+    id: uid(),
+    yachtName: '',
+    charterStartDate: '',
+    charterEndDate: '',
+    cruisingArea: '',
+    expectations: '', // 1-5
+    ratings, // each 1-10
+    testimonial: '',
+    improvements: '',
+    wouldReturn: '', // 'yes' | 'no' | ''
+    wouldRecommend: '', // 'yes' | 'no' | ''
+    clientName: '', // optional — the Jotform itself is anonymous
+    submittedDate: '',
+    serverId: '', // id assigned by get-feedback.php, when imported via server sync (prevents re-importing the same entry)
+    linkedCaseId: '' // optional link to a Charter File
+  };
+}
+function normalizeFeedback(raw){
+  const base = newFeedback();
+  const f = Object.assign({}, base, raw||{});
+  f.id = raw && raw.id ? raw.id : base.id;
+  f.ratings = Object.assign({}, base.ratings, (raw&&raw.ratings)||{});
+  return f;
+}
+function normalizeFeedbackList(list){
+  return (Array.isArray(list)?list:[]).map(normalizeFeedback);
+}
+function getFeedback(id){ return STATE.feedback.find(f=>f.id===id); }
+function feedbackAvgRating(f){
+  const vals = RATING_FIELDS.map(([k])=>num(f.ratings[k])).filter(v=>v>0);
+  if(!vals.length) return null;
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+
+/* ---- derived financial figures ---- */
+const STATUS_META = {
+  negotiation: {label:'In Negotiation', cls:'badge-idle', dot:'#9aa1a9'},
+  option:      {label:'Option', cls:'badge-warn', dot:'#d98b2b'},
+  contract:    {label:'Under Contract', cls:'badge-retail', dot:'#3b6ea5'},
+  confirmed:   {label:'Confirmed', cls:'badge-ok', dot:'#3d6b4c'},
+  in_progress: {label:'Charter In Progress', cls:'badge-progress', dot:'#c9a227'},
+  completed:   {label:'Charter Completed', cls:'badge-central', dot:'#4d7a78'},
+  closed:      {label:'Closed', cls:'badge-idle', dot:'#1c2530'}
+};
+const STATUS_ORDER = {negotiation:0, option:1, contract:2, confirmed:3, in_progress:4, completed:5, closed:6};
+/* The person only ever sets one of: negotiation / option / contract / confirmed / closed.
+   "Charter In Progress" and "Charter Completed" are never chosen — they're derived
+   automatically from "Confirmed" once today's date falls within, or after, the
+   charter dates. Closing is always a deliberate action (see isReadyToClose). */
+function getEffectivePhase(c){
+  if(c.status==='closed') return 'closed';
+  if(c.status==='confirmed'){
+    if(c.charterStartDate && c.charterEndDate){
+      const today = new Date(); today.setHours(0,0,0,0);
+      const start = new Date(c.charterStartDate+'T00:00:00');
+      const end = new Date(c.charterEndDate+'T00:00:00');
+      if(today > end) return 'completed';
+      if(today >= start) return 'in_progress';
+    }
+    return 'confirmed';
+  }
+  return c.status || 'negotiation';
+}
+/* Surfaced as a gentle nudge, not an automatic transition: the charter is over,
+   every payment on the schedule is marked paid, and the incoming/outgoing
+   ledger balances (or a reconciliation note has been recorded to justify why not). */
+function isReadyToClose(c){
+  if(getEffectivePhase(c)!=='completed') return false;
+  const schedule = buildPaymentSchedule(c);
+  const allPaid = schedule.every(p=>paymentStatus(c,p.key).status==='paid') &&
+                  c.customPayments.every(cp=>cp.status==='paid');
+  if(!allPaid) return false;
+  const ledger = buildLedger(c);
+  return Math.abs(ledger.diff) < 0.005;
+}
+
+function calc(c){
+  const rate = num(c.charterRate);
+  const vatAmt = c.vatOverride!==null && c.vatOverride!=='' ? num(c.vatOverride) : rate*num(c.vatPct)/100;
+  const apaAmt = c.apaOverride!==null && c.apaOverride!=='' ? num(c.apaOverride) : rate*num(c.apaPct)/100;
+  const delivery = num(c.deliveryFee);
+  const retailComm = c.retailCommissionOverride!==null && c.retailCommissionOverride!=='' ? num(c.retailCommissionOverride) : rate*num(c.retailCommissionPct)/100;
+  const caComm = c.caCommissionOverride!==null && c.caCommissionOverride!=='' ? num(c.caCommissionOverride) : rate*num(c.caCommissionPct)/100;
+  return {rate,vatAmt,apaAmt,delivery,retailComm,caComm};
+}
+
+/* ---- payment schedule generation ----
+   Order confirmed by the user:
+   1. Client Deposit
+   2. Our Commission Payment
+   3. Client Balance
+   4. CA Deposit (retail only)
+   5. CA Balance (retail only)
+   6. Owner Payment — Charter Start (central/stakeholder only)
+   7. Owner Payment — APA + Delivery (central/stakeholder only)
+   8. Owner Balance (central/stakeholder only)
+   9. APA Refund
+   10. VAT to Shipping Agency
+*/
+function buildScheduleItemsCharter(c){
+  const {rate,vatAmt,apaAmt,delivery,retailComm,caComm} = calc(c);
+  const isRetail = c.role==='retail';
+  const depositDue = addDays(c.contractSignDate, 5);
+  const balanceDue = subMonths(c.charterStartDate, 1);
+  const list = [];
+
+  /* --- cascading shortfall logic ---
+     If the client's actual Deposit falls short of what was expected, the
+     Client Balance's preset/expected amount absorbs that shortfall (so the
+     total collected still matches). If the Balance is ALSO left at (or
+     under) that adjusted figure — i.e. the shortfall is still not made up —
+     the remainder is deducted from whichever payment carries the APA
+     onward (APA + Delivery to the Owner when we're the Central Agent, or
+     the Balance forwarded to the Central Agent when we're the Retail
+     Broker), since that's the money that's actually missing overall. */
+  const overrides = c.paymentOverrides || {};
+  const overrideAmount = key => {
+    const ov = overrides[key];
+    return (ov && ov.amount!=='' && ov.amount!==undefined && ov.amount!==null) ? num(ov.amount) : null;
+  };
+  const depositExpected = isRetail ? rate*0.5 : (rate*0.5 - retailComm);
+  const depositActual = overrideAmount('client_deposit');
+  const depositShortfall = depositActual!==null ? (depositExpected - depositActual) : 0;
+
+  const balanceBaseExpected = rate*0.5 + vatAmt + apaAmt + delivery;
+  const balanceExpected = balanceBaseExpected + depositShortfall;
+  const balanceActual = overrideAmount('client_balance');
+  const balanceShortfall = balanceActual!==null ? (balanceExpected - balanceActual) : 0;
+
+  const depositCascadeNote = depositShortfall!==0
+    ? `Client Deposit is ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'short':'over'} — added to Client Balance below`
+    : null;
+  const balanceCascadeNote = depositShortfall!==0
+    ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
+    : null;
+  const apaCascadeNote = balanceShortfall!==0
+    ? `Reduced by ${fmtMoney(Math.abs(balanceShortfall))} — the Client Balance is still ${balanceShortfall>0?'short':'over'} by that amount`
+    : null;
+
+  list.push({
+    key:'client_deposit', label:'Client Deposit', party:'From Client',
+    amount: depositExpected,
+    due: depositDue,
+    note: isRetail ? '50% of Charter Rate' : '50% of Charter Rate less Retail Broker commission',
+    cascadeNote: depositCascadeNote,
+    always:true, direction:'in', ledger:true
+  });
+  list.push({
+    key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
+    amount: isRetail ? retailComm : caComm,
+    due: depositDue,
+    note:'Due when client deposit is received',
+    always:true, direction:'out', ledger:true
+  });
+  list.push({
+    key:'ca_deposit', label:'Payment to Central Agent — Deposit', party:'To Central Agent',
+    amount: rate*0.5 - retailComm,
+    due: depositDue,
+    note:'50% Charter Rate less our Retail Broker commission',
+    visible: isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'client_balance', label:'Client Balance', party:'From Client',
+    amount: balanceExpected,
+    due: balanceDue,
+    note:'50% Charter Rate + VAT + APA + Delivery',
+    cascadeNote: balanceCascadeNote,
+    always:true, direction:'in', ledger:true
+  });
+  list.push({
+    key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
+    amount: balanceExpected,
+    due: balanceDue,
+    note:'50% Charter Rate + VAT + APA + Delivery',
+    cascadeNote: isRetail ? balanceCascadeNote : null,
+    visible: isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'owner_apa_delivery', label:'APA + Delivery', party:'To Owner',
+    amount: (apaAmt + delivery) - (!isRetail ? balanceShortfall : 0),
+    due: balanceDue,
+    note:'Due on receipt of client balance',
+    cascadeNote: !isRetail ? apaCascadeNote : null,
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'owner_start', label:'First to Owner — Charter Start', party:'To Owner',
+    amount: rate*0.5 - (retailComm + caComm),
+    due: c.charterStartDate,
+    note:'50% Charter Rate less both brokers\' commissions',
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'owner_balance', label:'Balance to Owner', party:'To Owner',
+    amount: rate*0.5 + vatAmt,
+    due: c.charterEndDate,
+    note:'50% Charter Rate + VAT — due on charter end date',
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'crew_tip_received', label:'Crew Tip — Received from Client', party:'From Client',
+    amount: c.crewTipReceivedAmount!=='' ? num(c.crewTipReceivedAmount) : null,
+    due: c.charterEndDate,
+    note:'Enter amount once confirmed with client',
+    always:true, manualAmount:true, manualField:'crewTipReceivedAmount', direction:'in', ledger:true
+  });
+  list.push({
+    key:'crew_tip_forward', label:'Crew Tip — Forwarded to Crew', party:'To Crew',
+    amount: c.crewTipForwardAmount!=='' ? num(c.crewTipForwardAmount) : null,
+    due: c.charterEndDate,
+    note:'Send to crew on charter end',
+    always:true, manualAmount:true, manualField:'crewTipForwardAmount', direction:'out', ledger:true
+  });
+  list.push({
+    key:'apa_refund_in', label:'APA Refund — Received from Owner/Boat', party:'From Owner',
+    amount: c.apaRefundInAmount!=='' ? num(c.apaRefundInAmount) : null,
+    due: addDays(c.charterEndDate, 10),
+    note:'Enter final amount once owner\'s APA account is closed',
+    always:true, manualAmount:true, manualField:'apaRefundInAmount', direction:'in', ledger:true
+  });
+  list.push({
+    key:'apa_refund_out', label:'APA Refund — Returned to Client', party:'To Client',
+    amount: c.apaRefundOutAmount!=='' ? num(c.apaRefundOutAmount) : null,
+    due: addDays(c.charterEndDate, 10),
+    note:'Unused APA balance returned to the client',
+    always:true, manualAmount:true, manualField:'apaRefundOutAmount', direction:'out', ledger:true
+  });
+  list.push({
+    key:'vat_agency', label:'VAT to Shipping Agency', party:'To Shipping Agency',
+    amount: vatAmt,
+    due: addDays(c.charterEndDate, 5),
+    note:'Preset to total VAT',
+    always:true, direction:'out', ledger:true
+  });
+  return list;
+}
+
+function buildScheduleItemsSale(c){
+  const {rate, retailComm, caComm} = calc(c);
+  const isRetail = c.role==='retail';
+  const dueFor = key => (c.saleDueDates && c.saleDueDates[key]) || '';
+  const depositPct = (c.saleDepositPct!=='' && c.saleDepositPct!==null && c.saleDepositPct!==undefined) ? num(c.saleDepositPct) : 50;
+  const depositFrac = depositPct/100;
+  const balanceFrac = 1 - depositFrac;
+  const depositLabel = `${depositPct}% of Sale Price`;
+  const balanceLabel = `${(balanceFrac*100).toFixed(balanceFrac*100%1===0?0:2)}% of Sale Price`;
+  const list = [];
+
+  list.push({
+    key:'client_deposit', label:'Client Deposit', party:'From Client',
+    amount: isRetail ? rate*depositFrac : (rate*depositFrac - retailComm),
+    due: dueFor('client_deposit'), manualDue:true,
+    note: isRetail ? depositLabel : `${depositLabel} less Retail Broker commission`,
+    always:true, direction:'in', ledger:true
+  });
+  list.push({
+    key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
+    amount: isRetail ? retailComm : caComm,
+    due: dueFor('our_commission'), manualDue:true,
+    note:'Commission on this sale',
+    always:true, direction:'out', ledger:true
+  });
+  list.push({
+    key:'ca_deposit', label:'Payment to Central Agent — Deposit', party:'To Central Agent',
+    amount: rate*depositFrac - retailComm,
+    due: dueFor('ca_deposit'), manualDue:true,
+    note:`${depositLabel} less our Retail Broker commission`,
+    visible: isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'client_balance', label:'Client Balance', party:'From Client',
+    amount: rate*balanceFrac,
+    due: dueFor('client_balance'), manualDue:true,
+    note: balanceLabel,
+    always:true, direction:'in', ledger:true
+  });
+  list.push({
+    key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
+    amount: rate*balanceFrac,
+    due: dueFor('ca_balance'), manualDue:true,
+    note: balanceLabel,
+    visible: isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'seller_deposit', label:'First to Seller — Deposit', party:'To Seller',
+    amount: rate*depositFrac - (retailComm + caComm),
+    due: dueFor('seller_deposit'), manualDue:true,
+    note:`${depositLabel} less both brokers' commissions`,
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'seller_balance', label:'Balance to Seller', party:'To Seller',
+    amount: rate*balanceFrac,
+    due: dueFor('seller_balance'), manualDue:true,
+    note: balanceLabel,
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  return list;
+}
+
+function buildRawSchedule(c){
+  const list = c.type==='sale' ? buildScheduleItemsSale(c) : buildScheduleItemsCharter(c);
+
+  const overrides = c.paymentOverrides || {};
+  list.forEach(p=>{
+    p.expectedAmount = p.amount;
+    const ov = overrides[p.key];
+    if(!p.manualAmount && ov && ov.amount!=='' && ov.amount!==undefined && ov.amount!==null){
+      p.amount = num(ov.amount);
+      p.amountOverridden = true;
+    }
+    p.rowNote = ov ? (ov.note||'') : '';
+  });
+
+  return list.filter(p=>p.always || p.visible);
+}
+
+/* schedule actually shown/counted for this file — excludes rows the user has hidden */
+function buildPaymentSchedule(c){
+  const hidden = c.hiddenPayments || {};
+  return buildRawSchedule(c).filter(p=>!hidden[p.key]);
+}
+/* preset rows the user has hidden from this specific file, so they can be listed & restored */
+function getHiddenPresetPayments(c){
+  const hidden = c.hiddenPayments || {};
+  return buildRawSchedule(c).filter(p=>hidden[p.key]);
+}
+
+/* Preset payments and extra (custom) payments are merged into a single
+   orderable list so an extra payment can be dragged anywhere among the
+   preset ones, not just reordered against other extra payments.
+   c.paymentOrder stores composite ids: "fixed:<key>" or "custom:<id>". */
+function getUnifiedScheduleRows(c){
+  const fixed = buildPaymentSchedule(c).map(p=>({type:'fixed', id:'fixed:'+p.key, data:p}));
+  const custom = c.customPayments.map((cp,idx)=>({type:'custom', id:'custom:'+cp.id, data:cp, idx}));
+  const all = [...fixed, ...custom];
+  const byId = {};
+  all.forEach(r=>{ byId[r.id] = r; });
+  const resolve = oid => byId[oid] || byId['fixed:'+oid]; // 'fixed:' fallback supports order data saved before unification
+  const order = Array.isArray(c.paymentOrder) ? c.paymentOrder : [];
+  const rows = [];
+  const used = new Set();
+  order.forEach(oid=>{
+    const r = resolve(oid);
+    if(r && !used.has(r.id)){ rows.push(r); used.add(r.id); }
+  });
+  all.forEach(r=>{ if(!used.has(r.id)){ rows.push(r); used.add(r.id); } });
+  return rows;
+}
+
+/* ---- ledger: incoming vs outgoing reconciliation ---- */
+function buildLedger(c){
+  const schedule = buildPaymentSchedule(c).filter(p=>p.ledger);
+  const rows = [];
+  schedule.forEach(p=>{
+    const st = paymentStatus(c,p.key);
+    rows.push({
+      description: p.label, reason: p.rowNote ? p.rowNote : p.note, direction: p.direction,
+      amount: p.amount, due: p.due, status: st.status
+    });
+  });
+  c.customPayments.forEach(cp=>{
+    rows.push({
+      description: cp.description || 'Extra payment', reason: cp.reason, direction: cp.direction,
+      amount: cp.amount!=='' ? num(cp.amount) : null, due: cp.due, status: cp.status
+    });
+  });
+  const recon = c.reconciliation;
+  if(recon && recon.amount!=='' && num(recon.amount)>0){
+    rows.push({
+      description:'Reconciliation Adjustment', reason: recon.note || 'Manually entered to balance the ledger',
+      direction: recon.direction, amount: num(recon.amount), due:'', status:'n/a', isRecon:true
+    });
+  }
+  const totalIn = rows.filter(r=>r.direction==='in').reduce((s,r)=>s+(r.amount||0),0);
+  const totalOut = rows.filter(r=>r.direction==='out').reduce((s,r)=>s+(r.amount||0),0);
+  return {rows, totalIn, totalOut, diff: totalIn-totalOut};
+}
+
+function paymentStatus(c, key){
+  return c.payments[key] || {status:'pending', paidDate:''};
+}
+function paymentUrgency(due, status){
+  if(status==='paid') return 'ok';
+  if(!due) return 'idle';
+  const d = daysFromToday(due);
+  if(d===null) return 'idle';
+  if(d<0) return 'danger';
+  if(d<=7) return 'warn';
+  return 'idle';
+}
+
+/* ---------------- rendering ---------------- */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderTopbar()}
+    <main>${renderView()}</main>
+  `;
+  wireGlobalEvents();
+}
+
+function renderTopbar(){
+  const tabs = [
+    ['dashboard','Dashboard'],
+    ['cases','Charter Files'],
+    ['calendar','Calendar'],
+    ['feedback','Feedback'],
+    ['statistics','Statistics'],
+  ];
+  const onFeedback = STATE.view.tab==='feedback';
+  return `
+  <div class="topbar">
+    <div class="brand"><span class="mark">W</span><span>West Coast International<small>Charter & Sale Management System</small></span></div>
+    <nav class="tabs">
+      ${tabs.map(([k,l])=>`<button data-tab="${k}" class="${STATE.view.tab===k?'active':''}">${l}</button>`).join('')}
+    </nav>
+    <div class="actions">
+      ${onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-copy-form-link">Feedback link</button>` : ''}
+      ${onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-import-csv">Import CSV</button>` : ''}
+      <input type="file" id="file-import-csv" accept=".csv,text/csv" class="file-input-wrap">
+      <button class="btn btn-ghost btn-sm" id="btn-export">Export data</button>
+      <button class="btn btn-ghost btn-sm" id="btn-import">Import data</button>
+      <input type="file" id="file-import" accept="application/json" class="file-input-wrap">
+      ${onFeedback
+        ? `<button class="btn btn-brass btn-sm" id="btn-new-feedback">+ New Feedback Entry</button>`
+        : `<button class="btn btn-ghost btn-sm" id="btn-new-sale">+ New Sale File</button><button class="btn btn-brass btn-sm" id="btn-new-case">+ New Charter File</button>`}
+      ${MULTIUSER_ENABLED && currentUser ? `<button class="btn btn-ghost btn-sm" id="btn-sign-out" title="${esc(currentUser.email||'')}">Sign Out</button>` : ''}
+    </div>
+
+  </div>`;
+}
+
+function renderView(){
+  if(STATE.view.tab==='dashboard') return renderDashboard();
+  if(STATE.view.tab==='cases') return renderCasesList();
+  if(STATE.view.tab==='case') return renderCaseDetail(STATE.view.caseId);
+  if(STATE.view.tab==='feedback') return STATE.view.feedbackId ? renderFeedbackDetail(STATE.view.feedbackId) : renderFeedbackList();
+  if(STATE.view.tab==='calendar') return renderCalendar();
+  if(STATE.view.tab==='statistics') return renderStatistics();
+  return '';
+}
+
+/* ---- dashboard ---- */
+function renderDashboard(){
+  const allPayments = [];
+  STATE.cases.forEach(c=>{
+    buildPaymentSchedule(c).forEach(p=>{
+      const st = paymentStatus(c,p.key);
+      allPayments.push({...p, caseNumber:c.caseNumber, clientName:c.clientName, caseId:c.id, status:st.status, paidDate:st.paidDate,
+        role:c.role, retailBrokerName:c.retailBrokerName, retailAgencyName:c.retailAgencyName});
+    });
+  });
+  const pending = allPayments.filter(p=>p.status!=='paid');
+  const overdue = pending.filter(p=>daysFromToday(p.due)!==null && daysFromToday(p.due)<0);
+  const dueSoon = pending.filter(p=>{const d=daysFromToday(p.due);return d!==null && d>=0 && d<=7;});
+  const upcoming = pending.filter(p=>{const d=daysFromToday(p.due);return d!==null && d>7;}).sort((a,b)=> (a.due||'9').localeCompare(b.due||'9'));
+
+  const rows = [...overdue, ...dueSoon, ...upcoming.slice(0,25)];
+
+  if(STATE.cases.length===0){
+    return `<div class="card"><div class="card-body">${emptyState('No charter files yet','Create your first charter file to start tracking dates, brokers and the payment schedule.')}</div></div>`;
+  }
+
+  return `
+    <div class="dash-grid">
+      <div class="stat-card"><div class="num">${STATE.cases.length}</div><div class="lbl">Open charter files</div></div>
+      <div class="stat-card danger"><div class="num">${overdue.length}</div><div class="lbl">Overdue payments</div></div>
+      <div class="stat-card warn"><div class="num">${dueSoon.length}</div><div class="lbl">Due within 7 days</div></div>
+      <div class="stat-card"><div class="num">${pending.length}</div><div class="lbl">Pending payments total</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2><span class="eyebrow">Reminders</span></h2><span class="muted" style="font-size:12px;">Sorted by due date</span></div>
+      <div class="card-body" style="padding:0;">
+        ${rows.length ? renderPaymentReminderTable(rows) : emptyState('All clear','No pending payments to flag right now.')}
+      </div>
+    </div>
+  `;
+}
+
+function renderPaymentReminderTable(rows){
+  return `
+  <table>
+    <thead><tr><th>Due</th><th>Charter File</th><th>Client</th><th>Payment</th><th>Direction</th><th style="text-align:right;">Amount</th><th>Status</th></tr></thead>
+    <tbody>
+      ${rows.map(p=>{
+        const urg = paymentUrgency(p.due, p.status);
+        const badge = urg==='danger' ? '<span class="badge badge-danger">Overdue</span>'
+                    : urg==='warn' ? '<span class="badge badge-warn">Due soon</span>'
+                    : '<span class="badge badge-idle">Upcoming</span>';
+        return `<tr class="clickable" data-open-case="${p.caseId}">
+          <td class="mono">${fmtDate(p.due)}</td>
+          <td class="mono">${p.caseNumber ? esc(p.caseNumber) : '<span class="muted">—</span>'}</td>
+          <td>${esc(p.clientName)||'<span class="muted">—</span>'}${p.role==='central' && (p.retailBrokerName||p.retailAgencyName) ? `<div style="font-size:11px;margin-top:2px;color:var(--brass);font-weight:600;">${esc(p.retailBrokerName)}${p.retailBrokerName&&p.retailAgencyName?' · ':''}${esc(p.retailAgencyName)}</div>` : ''}</td>
+          <td>${esc(p.label)}</td>
+          <td class="muted">${esc(p.party)}</td>
+          <td style="text-align:right;" class="amount">${p.amount===null?'—':fmtMoney(p.amount)}</td>
+          <td>${badge}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+/* ---- cases list ---- */
+function sortCases(cases, field, dir){
+  const mul = dir==='asc' ? 1 : -1;
+  return cases.slice().sort((a,b)=>{
+    let av, bv;
+    switch(field){
+      case 'caseNumber': av=(a.caseNumber||'').toLowerCase(); bv=(b.caseNumber||'').toLowerCase(); break;
+      case 'clientName': av=(a.clientName||'').toLowerCase(); bv=(b.clientName||'').toLowerCase(); break;
+      case 'role': av=a.role||''; bv=b.role||''; break;
+      case 'charterEndDate': av=a.charterEndDate||''; bv=b.charterEndDate||''; break;
+      case 'personInCharge': av=(a.personInCharge||'').toLowerCase(); bv=(b.personInCharge||'').toLowerCase(); break;
+      case 'payments': av=paymentsOverdueCount(a); bv=paymentsOverdueCount(b); break;
+      case 'status': av=STATUS_ORDER[getEffectivePhase(a)]??0; bv=STATUS_ORDER[getEffectivePhase(b)]??0; break;
+      case 'charterStartDate':
+      default: av=a.charterStartDate||''; bv=b.charterStartDate||''; break;
+    }
+    if(av<bv) return -1*mul;
+    if(av>bv) return 1*mul;
+    return 0;
+  });
+}
+function paymentsOverdueCount(c){
+  try{
+    const sched = buildPaymentSchedule(c);
+    return sched.filter(p=>paymentStatus(c,p.key).status!=='paid' && daysFromToday(p.due)!==null && daysFromToday(p.due)<0).length;
+  }catch(e){ return -1; }
+}
+
+function renderCasesList(){
+  const q = (STATE.view.query||'').toLowerCase();
+  const roleFilter = STATE.view.roleFilter||'';
+  let cases = STATE.cases.filter(c=>{
+    const matchQ = !q || (c.caseNumber||'').toLowerCase().includes(q) || (c.clientName||'').toLowerCase().includes(q);
+    const matchR = !roleFilter || c.role===roleFilter;
+    return matchQ && matchR;
+  });
+  const sortField = STATE.view.sortField || 'charterStartDate';
+  const sortDir = STATE.view.sortDir || 'desc';
+  cases = sortCases(cases, sortField, sortDir);
+
+  return `
+    <div class="search-bar no-print">
+      <input type="text" id="search-q" placeholder="Search by case number or client…" value="${esc(STATE.view.query||'')}">
+      <select id="filter-role">
+        <option value="">All roles</option>
+        <option value="retail" ${roleFilter==='retail'?'selected':''}>Retail Broker</option>
+        <option value="central" ${roleFilter==='central'?'selected':''}>Central Agent</option>
+      </select>
+      <span class="muted" style="font-size:12px;">${cases.length} file${cases.length===1?'':'s'}</span>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        ${cases.length? renderCasesTable(cases, sortField, sortDir) : emptyState('No matching charter files','Adjust your search or create a new charter file.')}
+      </div>
+    </div>
+  `;
+}
+
+function renderListDeleteButton(id){
+  if(STATE.view.confirmDelete === id){
+    return `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-case-list="${id}">Confirm</button>
+            <button class="btn btn-ghost btn-sm" data-cancel-delete>Cancel</button>`;
+  }
+  return `<button class="btn btn-ghost btn-sm" data-delete-case-list="${id}" title="Delete this file">Delete</button>`;
+}
+
+function renderCasesTable(cases, sortField, sortDir){
+  const col = (field, label)=>{
+    const active = sortField===field;
+    const arrow = active ? (sortDir==='asc' ? ' ▲' : ' ▼') : '';
+    return `<th data-sort-field="${field}" class="sortable-col" title="Sort by ${label}">${label}${arrow}</th>`;
+  };
+  return `
+  <table>
+    <thead><tr>
+      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Person in Charge')}${col('payments','Payments')}<th></th><th class="no-print"></th>
+    </tr></thead>
+    <tbody>
+      ${cases.map(c=>{
+        try{
+          const sched = buildPaymentSchedule(c);
+          const pending = sched.filter(p=>paymentStatus(c,p.key).status!=='paid');
+          const overdue = pending.filter(p=>daysFromToday(p.due)!==null && daysFromToday(p.due)<0);
+          return `<tr class="clickable" data-open-case="${c.id}">
+            <td>${renderStatusChip(c, false)}</td>
+            <td class="mono">${c.caseNumber ? esc(c.caseNumber) : '<span class="muted">—</span>'}</td>
+            <td>${esc(c.clientName)||'<span class="muted">Unnamed</span>'}${c.role==='central' && (c.retailBrokerName||c.retailAgencyName) ? `<div style="font-size:11px;margin-top:2px;color:var(--brass);font-weight:600;">${esc(c.retailBrokerName)}${c.retailBrokerName&&c.retailAgencyName?' · ':''}${esc(c.retailAgencyName)}</div>` : ''}</td>
+            <td>${c.role==='retail'?'<span class="badge badge-retail">Retail Broker</span>':'<span class="badge badge-central">Central Agent</span>'}</td>
+            <td class="mono">${fmtDate(c.charterStartDate)} ${c.charterStartTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.departureLocation)||'—'}</div></td>
+            <td class="mono">${fmtDate(c.charterEndDate)} ${c.charterEndTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.arrivalLocation)||'—'}</div></td>
+            <td>${esc(c.personInCharge)||'<span class="muted">—</span>'}</td>
+            <td>${overdue.length? `<span class="badge badge-danger">${overdue.length} overdue</span>` : `<span class="badge badge-idle">${pending.length} pending</span>`}</td>
+            <td style="text-align:right;"><button class="btn btn-ghost btn-sm" data-open-case="${c.id}">Open →</button></td>
+            <td class="no-print" style="text-align:right;">${renderListDeleteButton(c.id)}</td>
+          </tr>`;
+        }catch(err){
+          /* a record from an older version of the app couldn't be read — still list it so it can be removed */
+          return `<tr>
+            <td><span class="status-chip"><span class="status-dot" style="background:#9aa1a9;"></span>—</span></td>
+            <td class="mono">${c.caseNumber ? esc(c.caseNumber) : '<span class="muted">—</span>'}</td>
+            <td colspan="5"><span class="badge badge-danger">Couldn't be opened — outdated or corrupted record</span></td>
+            <td class="no-print" style="text-align:right;" colspan="2">${renderListDeleteButton(c.id)}</td>
+          </tr>`;
+        }
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+/* ---- booking calendar ---- */
+const YACHT_COLOR_PALETTE = ['#3b6ea5','#4f8a41','#c9a227','#a13f2e','#6b4fa5','#2f8f7f','#b5588c','#7a8b3f','#3f5c8a','#a5763b','#5a6a76','#8a5a3f'];
+function colorForYacht(name){
+  if(!name) return '#8a97a3';
+  let hash = 0;
+  for(let i=0;i<name.length;i++){ hash = (hash*31 + name.charCodeAt(i)) >>> 0; }
+  return YACHT_COLOR_PALETTE[hash % YACHT_COLOR_PALETTE.length];
+}
+function dateStr(d){ return toISODate(d); }
+function dayDiffFromWeekStart(weekStartDate, iso){
+  const d = new Date(iso+'T00:00:00');
+  return Math.round((d - weekStartDate) / 86400000);
+}
+function buildCalendarWeeks(year, month){
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month+1, 0);
+  const startWeekday = (monthStart.getDay()+6)%7; // Monday=0
+  const daysInMonth = monthEnd.getDate();
+  const gridStart = new Date(year, month, 1 - startWeekday);
+  const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+  const weeks = [];
+  for(let w=0; w<totalCells/7; w++){
+    const days = [];
+    for(let d=0; d<7; d++){
+      days.push(new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + w*7 + d));
+    }
+    weeks.push(days);
+  }
+  return weeks;
+}
+function assignCalendarLanes(weekCases, weekStartDate, clipStart, clipEnd){
+  const sorted = weekCases.slice().sort((a,b)=> (a.charterStartDate||'').localeCompare(b.charterStartDate||'') || (a.caseNumber||'').localeCompare(b.caseNumber||''));
+  const lanes = []; // lane -> last occupied column
+  const placed = [];
+  sorted.forEach(c=>{
+    const effStart = c.charterStartDate > clipStart ? c.charterStartDate : clipStart;
+    const effEnd = c.charterEndDate < clipEnd ? c.charterEndDate : clipEnd;
+    const startCol = Math.max(0, dayDiffFromWeekStart(weekStartDate, effStart));
+    const endCol = Math.min(6, dayDiffFromWeekStart(weekStartDate, effEnd));
+    let lane = lanes.findIndex(endC => endC < startCol);
+    if(lane === -1){ lane = lanes.length; lanes.push(endCol); }
+    else lanes[lane] = endCol;
+    placed.push({c, startCol, endCol, lane, effStart, effEnd});
+  });
+  return {placed, laneCount: Math.max(lanes.length,1)};
+}
+function renderCalendarMonthBlock(year, month, cases, todayStr){
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month+1, 0);
+  const monthStartStr = dateStr(monthStart);
+  const monthEndStr = dateStr(monthEnd);
+  const monthLabel = monthStart.toLocaleDateString('en-GB', {month:'long', year:'numeric'});
+  const weekdayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const weeks = buildCalendarWeeks(year, month);
+
+  const weeksHtml = weeks.map(days=>{
+    const weekStartDate = days[0];
+    const weekStartStr = dateStr(days[0]);
+    const weekEndStr = dateStr(days[6]);
+    // Clip to this month only — the leading/trailing padding days belong
+    // visually to the adjacent month's own block, so a charter shouldn't
+    // be drawn across them here too (that's what made bars look longer
+    // than they really are when two months are shown stacked).
+    const clipStart = weekStartStr > monthStartStr ? weekStartStr : monthStartStr;
+    const clipEnd = weekEndStr < monthEndStr ? weekEndStr : monthEndStr;
+    const weekCases = clipStart <= clipEnd
+      ? cases.filter(c => c.charterStartDate <= clipEnd && c.charterEndDate >= clipStart)
+      : [];
+    const {placed, laneCount} = assignCalendarLanes(weekCases, weekStartDate, clipStart, clipEnd);
+
+    const dayNumsHtml = days.map(d=>{
+      const inMonth = d.getMonth()===month;
+      const isToday = dateStr(d)===todayStr;
+      return `<div class="cal-daycell ${inMonth?'':'cal-daycell-out'} ${isToday?'cal-daycell-today':''}">${inMonth?d.getDate():''}</div>`;
+    }).join('');
+
+    const barsHtml = placed.map(p=>{
+      const c = p.c;
+      const color = colorForYacht(c.yachtName);
+      const continuesBefore = c.charterStartDate < p.effStart;
+      const continuesAfter = c.charterEndDate > p.effEnd;
+      const label = [c.caseNumber, c.yachtName, c.clientName].filter(Boolean).join(' · ') || 'Untitled charter';
+      const radius = `border-top-left-radius:${continuesBefore?'0':'4px'};border-bottom-left-radius:${continuesBefore?'0':'4px'};border-top-right-radius:${continuesAfter?'0':'4px'};border-bottom-right-radius:${continuesAfter?'0':'4px'};`;
+      return `<div class="cal-bar" data-open-case="${c.id}" style="grid-column:${p.startCol+1} / span ${p.endCol-p.startCol+1}; grid-row:${p.lane+1}; background:${color}; ${radius}" title="${esc(label)}">
+        <span class="cal-bar-label">${continuesBefore?'← ':''}${esc(label)}${continuesAfter?' →':''}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="cal-week">
+      <div class="cal-week-daynums">${dayNumsHtml}</div>
+      <div class="cal-week-bars" style="grid-template-rows:repeat(${laneCount}, 22px);">${barsHtml}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="cal-month-label">${monthLabel}</div>
+    <div class="cal-grid-head">
+      ${weekdayLabels.map(w=>`<div class="cal-headcell">${w}</div>`).join('')}
+    </div>
+    ${weeksHtml}
+  `;
+}
+function renderCalendar(){
+  const now = new Date();
+  const year = STATE.view.calYear!==undefined ? STATE.view.calYear : now.getFullYear();
+  const month = STATE.view.calMonth!==undefined ? STATE.view.calMonth : now.getMonth(); // 0-11
+  const yachtFilter = STATE.view.calYachtFilter || '';
+  const todayStr = dateStr(now);
+
+  const activeYachtNames = Array.from(new Set(
+    STATE.cases.filter(c => getEffectivePhase(c)!=='closed' && c.yachtName).map(c=>c.yachtName)
+  )).sort();
+
+  const cases = STATE.cases.filter(c=> c.charterStartDate && c.charterEndDate && (!yachtFilter || c.yachtName===yachtFilter));
+
+  let nextMonth = month+1, nextYear = year;
+  if(nextMonth>11){ nextMonth=0; nextYear+=1; }
+
+  return `
+    <div class="search-bar no-print" style="align-items:center;">
+      <button class="btn btn-ghost btn-sm" data-cal-nav="prev">← Prev</button>
+      <button class="btn btn-ghost btn-sm" data-cal-nav="today">Today</button>
+      <button class="btn btn-ghost btn-sm" data-cal-nav="next">Next →</button>
+      <select id="cal-filter-yacht" style="margin-left:auto;">
+        <option value="">All yachts</option>
+        ${activeYachtNames.map(y=>`<option value="${esc(y)}" ${yachtFilter===y?'selected':''}>${esc(y)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:14px;">
+        ${renderCalendarMonthBlock(year, month, cases, todayStr)}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:14px;">
+        ${renderCalendarMonthBlock(nextYear, nextMonth, cases, todayStr)}
+      </div>
+    </div>
+  `;
+}
+
+/* ---- statistics ---- */
+function yearFromCaseNumber(caseNumber){
+  const m = (caseNumber||'').trim().match(/(\d{4})\s*$/);
+  return m ? m[1] : null;
+}
+function renderStatistics(){
+  const groups = {}; // year -> rows[]
+  let noYear = [];
+  STATE.cases.forEach(c=>{
+    const {rate, vatAmt, apaAmt, delivery, retailComm, caComm} = calc(c);
+    const totalForClient = rate + vatAmt + apaAmt + delivery;
+    const row = {
+      id: c.id, caseNumber: c.caseNumber, yachtName: c.yachtName, role: c.role,
+      charterRate: rate, totalForClient,
+      retailCommission: c.role==='retail' ? retailComm : 0,
+      centralCommission: c.role==='central' ? caComm : 0
+    };
+    const year = yearFromCaseNumber(c.caseNumber);
+    if(year){ (groups[year] = groups[year]||[]).push(row); }
+    else noYear.push(row);
+  });
+  const years = Object.keys(groups).sort((a,b)=> b.localeCompare(a));
+
+  if(STATE.cases.length===0){
+    return `<div class="card"><div class="card-body">${emptyState('No data yet','Statistics will appear here once you have charter files with a case number ending in a year, e.g. 000-2026.')}</div></div>`;
+  }
+
+  const sumRows = rows => rows.reduce((s,r)=>({
+    charterRate: s.charterRate + (r.charterRate||0),
+    totalForClient: s.totalForClient + (r.totalForClient||0),
+    retailCommission: s.retailCommission + (r.retailCommission||0),
+    centralCommission: s.centralCommission + (r.centralCommission||0)
+  }), {charterRate:0, totalForClient:0, retailCommission:0, centralCommission:0});
+
+  const grand = sumRows(Object.values(groups).flat().concat(noYear));
+
+  const renderYearTable = (label, rows) => {
+    rows = rows.slice().sort((a,b)=> (a.caseNumber||'').localeCompare(b.caseNumber||''));
+    const totals = sumRows(rows);
+    return `
+    <div class="card">
+      <div class="card-head"><h2><span class="eyebrow">Year</span>&nbsp; ${esc(label)}</h2><span class="muted" style="font-size:12px;">${rows.length} charter file${rows.length===1?'':'s'}</span></div>
+      <div class="card-body" style="padding:0;">
+        <table>
+          <thead><tr>
+            <th>Case #</th><th>Yacht</th><th>Role</th>
+            <th style="text-align:right;">Charter Rate</th>
+            <th style="text-align:right;">Total Charter (Client)</th>
+            <th style="text-align:right;">Retail Broker Commission</th>
+            <th style="text-align:right;">Central Agent Commission</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr class="clickable" data-open-case="${r.id}">
+              <td class="mono">${r.caseNumber?esc(r.caseNumber):'<span class="muted">—</span>'}</td>
+              <td>${esc(r.yachtName)||'<span class="muted">—</span>'}</td>
+              <td>${r.role==='retail'?'<span class="badge badge-retail">Retail Broker</span>':'<span class="badge badge-central">Central Agent</span>'}</td>
+              <td style="text-align:right;" class="amount">${fmtMoney(r.charterRate)}</td>
+              <td style="text-align:right;" class="amount">${fmtMoney(r.totalForClient)}</td>
+              <td style="text-align:right;" class="amount">${r.role==='retail'?fmtMoney(r.retailCommission):'—'}</td>
+              <td style="text-align:right;" class="amount">${r.role==='central'?fmtMoney(r.centralCommission):'—'}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align:right;font-weight:700;">Year total</td>
+              <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(totals.charterRate)}</td>
+              <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(totals.totalForClient)}</td>
+              <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(totals.retailCommission)}</td>
+              <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(totals.centralCommission)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+  };
+
+  return `
+    <div class="dash-grid">
+      <div class="stat-card"><div class="num">${STATE.cases.length}</div><div class="lbl">Charter files</div></div>
+      <div class="stat-card"><div class="num">${fmtMoney(grand.charterRate)}</div><div class="lbl">Total charter rate</div></div>
+      <div class="stat-card"><div class="num">${fmtMoney(grand.retailCommission)}</div><div class="lbl">Retail Broker commission</div></div>
+      <div class="stat-card"><div class="num">${fmtMoney(grand.centralCommission)}</div><div class="lbl">Central Agent commission</div></div>
+    </div>
+    ${years.map(y=>renderYearTable(y, groups[y])).join('')}
+    ${noYear.length ? renderYearTable('No year found in case number', noYear) : ''}
+  `;
+}
+
+/* ---- case detail ---- */
+/* ---- client feedback ---- */
+function renderFeedbackSyncPanel(){
+  const s = STATE.feedbackSync;
+  return `
+    <div class="card no-print">
+      <div class="card-head"><h2><span class="eyebrow">Link</span>&nbsp; Feedback Form</h2></div>
+      <div class="card-body">
+        <div class="field"><label class="field-label">Feedback form link (shown by the "Feedback link" button above)</label><input type="text" data-fbsync="formLink" value="${esc(s.formLink)}" placeholder="e.g. https://bit.ly/wci-feedback"></div>
+      </div>
+    </div>
+    <div class="card no-print">
+      <div class="card-head"><h2><span class="eyebrow">Server</span>&nbsp; Sync Feedback (Supabase)</h2></div>
+      <div class="card-body">
+        <div class="row c3">
+          <div class="field"><label class="field-label">Supabase Project URL</label><input type="text" data-fbsync="endpointUrl" value="${esc(s.endpointUrl)}" placeholder="https://xxxxxxxx.supabase.co"></div>
+          <div class="field"><label class="field-label">Supabase service_role key</label><input type="text" data-fbsync="secretKey" value="${esc(s.secretKey)}" placeholder="from Project Settings → API"></div>
+          <div class="field" style="display:flex;align-items:flex-end;gap:10px;">
+            <button class="btn btn-brass btn-sm" id="btn-sync-feedback" style="height:38px;">Sync from server</button>
+          </div>
+        </div>
+        <div class="field-hint">${s.lastSyncedAt ? 'Last synced ' + fmtDate(s.lastSyncedAt.slice(0,10)) + ' at ' + new Date(s.lastSyncedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Never synced yet.'} Pulls in new submissions from your Supabase "feedback" table. ⚠ Use the <strong>service_role</strong> key here (never the "anon" key) — and never paste the service_role key into feedback-form.html, only here.</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackList(){
+  const q = (STATE.view.feedbackQuery||'').toLowerCase();
+  const yachtFilter = STATE.view.yachtFilter||'';
+  let list = STATE.feedback.filter(f=>{
+    const matchQ = !q || (f.yachtName||'').toLowerCase().includes(q) || (f.clientName||'').toLowerCase().includes(q);
+    const matchY = !yachtFilter || f.yachtName===yachtFilter;
+    return matchQ && matchY;
+  });
+  list = list.slice().sort((a,b)=> (b.charterStartDate||'').localeCompare(a.charterStartDate||''));
+
+  const yachtNames = Array.from(new Set(STATE.feedback.map(f=>f.yachtName).filter(Boolean))).sort();
+
+  if(STATE.feedback.length===0){
+    return `
+      ${renderFeedbackSyncPanel()}
+      <div class="card"><div class="card-body">${emptyState('No feedback entries yet','Record client responses from the Jotform here as they come in, then filter and print them by yacht.')}</div></div>
+    `;
+  }
+
+  return `
+    ${renderFeedbackSyncPanel()}
+    <div class="search-bar no-print">
+      <input type="text" id="feedback-search-q" placeholder="Search by yacht or client…" value="${esc(STATE.view.feedbackQuery||'')}">
+      <select id="feedback-filter-yacht">
+        <option value="">All yachts</option>
+        ${yachtNames.map(y=>`<option value="${esc(y)}" ${yachtFilter===y?'selected':''}>${esc(y)}</option>`).join('')}
+      </select>
+      <span class="muted" style="font-size:12px;">${list.length} entr${list.length===1?'y':'ies'}</span>
+      <button class="btn btn-ghost btn-sm" onclick="window.print()" style="margin-left:auto;">Print ${yachtFilter? 'this yacht’s' : 'these'} results</button>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        ${list.length ? renderFeedbackTable(list) : emptyState('No matching feedback','Adjust your search or filter.')}
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackTable(list){
+  return `
+  <table>
+    <thead><tr>
+      <th>Yacht</th><th>Charter File</th><th>Charter Dates</th><th>Cruising Area</th><th>Expectations</th><th>Avg. Rating</th><th>Would Return</th><th>Would Recommend</th><th></th><th class="no-print"></th>
+    </tr></thead>
+    <tbody>
+      ${list.map(f=>{
+        const avg = feedbackAvgRating(f);
+        const linkedCase = f.linkedCaseId ? getCase(f.linkedCaseId) : null;
+        return `<tr class="clickable" data-open-feedback="${f.id}">
+          <td><strong>${esc(f.yachtName)||'<span class="muted">Unnamed yacht</span>'}</strong>${f.clientName?`<div class="muted" style="font-size:11px;margin-top:2px;">${esc(f.clientName)}</div>`:''}</td>
+          <td class="mono">${linkedCase ? esc(linkedCase.caseNumber||'—') : '<span class="muted">Not linked</span>'}</td>
+          <td class="mono">${f.charterStartDate?fmtDate(f.charterStartDate):'—'} – ${f.charterEndDate?fmtDate(f.charterEndDate):'—'}</td>
+          <td>${esc(f.cruisingArea)||'<span class="muted">—</span>'}</td>
+          <td>${f.expectations ? '★'.repeat(+f.expectations)+'<span class="muted">'+'★'.repeat(5-(+f.expectations))+'</span>' : '<span class="muted">—</span>'}</td>
+          <td>${avg!==null ? `<span class="amount">${avg.toFixed(1)}/10</span>` : '<span class="muted">—</span>'}</td>
+          <td>${f.wouldReturn ? (f.wouldReturn==='yes' ? '<span class="badge badge-ok">Yes</span>' : '<span class="badge badge-idle">No</span>') : '<span class="muted">—</span>'}</td>
+          <td>${f.wouldRecommend ? (f.wouldRecommend==='yes' ? '<span class="badge badge-ok">Yes</span>' : '<span class="badge badge-idle">No</span>') : '<span class="muted">—</span>'}</td>
+          <td style="text-align:right;"><button class="btn btn-ghost btn-sm" data-open-feedback="${f.id}">Open →</button></td>
+          <td class="no-print" style="text-align:right;">${renderFeedbackDeleteButton(f.id)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderFeedbackDeleteButton(id){
+  if(STATE.view.confirmDeleteFeedback === id){
+    return `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-feedback-list="${id}">Confirm</button>
+            <button class="btn btn-ghost btn-sm" data-cancel-delete-feedback>Cancel</button>`;
+  }
+  return `<button class="btn btn-ghost btn-sm" data-delete-feedback-list="${id}" title="Delete this entry">Delete</button>`;
+}
+
+function ratingScale(name, value, max, idPrefix){
+  const cells = [];
+  for(let i=1;i<=max;i++){
+    cells.push(`<button type="button" class="rating-cell ${+value===i?'active':''}" data-rating-field="${name}" data-rating-value="${i}">${i}</button>`);
+  }
+  return `<div class="rating-scale" id="${idPrefix}">${cells.join('')}</div>`;
+}
+
+function renderFeedbackDetail(id){
+  const f = getFeedback(id);
+  if(!f) return emptyState('Feedback entry not found','It may have been deleted.');
+  const avg = feedbackAvgRating(f);
+
+  return `
+  <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <button class="btn btn-ghost btn-sm" data-back-to-feedback-list>← All feedback</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+      ${STATE.view.confirmDeleteFeedback===f.id
+        ? `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-feedback="${f.id}">Confirm delete — cannot be undone</button>
+           <button class="btn btn-ghost btn-sm" data-cancel-delete-feedback>Cancel</button>`
+        : `<button class="btn btn-danger btn-sm" data-delete-feedback="${f.id}">Delete entry</button>`}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Link</span>&nbsp; Charter File</h2></div>
+    <div class="card-body">
+      <div class="field">
+        <label class="field-label">Linked Charter File</label>
+        <select data-fb="linkedCaseId">
+          <option value="">— Not linked —</option>
+          ${STATE.cases.map(cs=>`<option value="${cs.id}" ${f.linkedCaseId===cs.id?'selected':''}>${esc(cs.caseNumber||'No case number')} — ${esc(cs.clientName)||'Unnamed'}${cs.yachtName?' · '+esc(cs.yachtName):''}</option>`).join('')}
+        </select>
+        <div class="field-hint">Selecting a charter file fills in the yacht name, client and dates below if they're still empty.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Charter</span>&nbsp; Yacht & Dates</h2></div>
+    <div class="card-body">
+      <div class="row c3">
+        <div class="field"><label class="field-label">Yacht Name</label><input type="text" data-fb="yachtName" value="${esc(f.yachtName)}"></div>
+        <div class="field"><label class="field-label">Client Name <span class="muted" style="text-transform:none;font-weight:400;">(internal use — the form itself is anonymous)</span></label><input type="text" data-fb="clientName" value="${esc(f.clientName)}"></div>
+        <div class="field"><label class="field-label">Cruising Area</label><input type="text" data-fb="cruisingArea" value="${esc(f.cruisingArea)}" placeholder="e.g. Amalfi Coast"></div>
+      </div>
+      <div class="row c3">
+        <div class="field"><label class="field-label">Charter Starting Date</label><input type="date" data-fb="charterStartDate" value="${esc(f.charterStartDate)}"></div>
+        <div class="field"><label class="field-label">Charter Ending Date</label><input type="date" data-fb="charterEndDate" value="${esc(f.charterEndDate)}"></div>
+        <div class="field"><label class="field-label">Submitted On</label><input type="date" data-fb="submittedDate" value="${esc(f.submittedDate)}"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Overall</span>&nbsp; Expectations</h2></div>
+    <div class="card-body">
+      <div class="field-label" style="margin-bottom:8px;">Did the experience meet, exceed or fall below expectations? (1 = fell below, 5 = exceeded)</div>
+      ${ratingScale('expectations', f.expectations, 5, 'rate-expectations')}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Ratings</span>&nbsp; How would you rate each aspect? ${avg!==null?`<span class="badge badge-ok" style="margin-left:8px;">avg ${avg.toFixed(1)}/10</span>`:''}</h2></div>
+    <div class="card-body">
+      ${RATING_FIELDS.map(([key,label])=>`
+        <div class="field" style="margin-bottom:16px;">
+          <label class="field-label">${esc(label)}</label>
+          ${ratingScale('rating_'+key, f.ratings[key], 10, 'rate-'+key)}
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Comments</span></h2></div>
+    <div class="card-body">
+      <div class="field">
+        <label class="field-label">Words about their experience (shareable with future clients)</label>
+        <textarea data-fb="testimonial" rows="4" placeholder="Client's own words…">${esc(f.testimonial)}</textarea>
+      </div>
+      <div class="field">
+        <label class="field-label">What could we have done differently?</label>
+        <textarea data-fb="improvements" rows="4" placeholder="Improvement suggestions…">${esc(f.improvements)}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Yes / No</span></h2></div>
+    <div class="card-body">
+      <div class="row c2">
+        <div class="field">
+          <label class="field-label">Planning to come back on this yacht?</label>
+          <div class="pill-toggle no-print">
+            <button class="${f.wouldReturn==='yes'?'active retail':''}" data-fb-bool="wouldReturn" data-fb-bool-value="yes">Yes</button>
+            <button class="${f.wouldReturn==='no'?'active central':''}" data-fb-bool="wouldReturn" data-fb-bool-value="no">No</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Would recommend this yacht to friends?</label>
+          <div class="pill-toggle no-print">
+            <button class="${f.wouldRecommend==='yes'?'active retail':''}" data-fb-bool="wouldRecommend" data-fb-bool-value="yes">Yes</button>
+            <button class="${f.wouldRecommend==='no'?'active central':''}" data-fb-bool="wouldRecommend" data-fb-bool-value="no">No</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function renderCaseDetail(id){
+  const c = getCase(id);
+  if(!c) return emptyState('Charter file not found','It may have been deleted.');
+  const {rate,vatAmt,apaAmt,retailComm,caComm} = calc(c);
+  const schedule = buildPaymentSchedule(c);
+  const hiddenPresets = getHiddenPresetPayments(c);
+  const unifiedRows = getUnifiedScheduleRows(c);
+  const ledger = buildLedger(c);
+
+  return `
+  <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn btn-ghost btn-sm" data-back-to-list>← All files</button>
+      <span class="mono" style="font-size:13px;color:var(--ink-soft);">${c.caseNumber ? esc(c.caseNumber) : 'No case number'}</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      ${renderStatusControl(c)}
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+      ${STATE.view.confirmDelete===c.id
+        ? `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-case="${c.id}">Confirm delete — cannot be undone</button>
+           <button class="btn btn-ghost btn-sm" data-cancel-delete>Cancel</button>`
+        : `<button class="btn btn-danger btn-sm" data-delete-case="${c.id}">Delete file</button>`}
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+  <div class="role-bar" style="background:var(--navy-800);flex:1;min-width:280px;margin-bottom:0;">
+    <div class="role-bar-label">File type</div>
+    <div class="role-bar-options no-print">
+      <button class="role-option ${c.type==='charter'?'active retail':''}" data-set-type="charter">
+        <span class="role-option-check">${c.type==='charter'?'✓':''}</span>
+        <span class="role-option-title">Charter</span>
+      </button>
+      <button class="role-option ${c.type==='sale'?'active central':''}" data-set-type="sale">
+        <span class="role-option-check">${c.type==='sale'?'✓':''}</span>
+        <span class="role-option-title">Sale</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="role-bar" style="flex:1;min-width:280px;margin-bottom:0;">
+    <div class="role-bar-label">We are acting as</div>
+    <div class="role-bar-options no-print">
+      <button class="role-option ${c.role==='retail'?'active retail':''}" data-set-role="retail">
+        <span class="role-option-check">${c.role==='retail'?'✓':''}</span>
+        <span class="role-option-title">Retail Broker</span>
+      </button>
+      <button class="role-option ${c.role==='central'?'active central':''}" data-set-role="central">
+        <span class="role-option-check">${c.role==='central'?'✓':''}</span>
+        <span class="role-option-title">Central Agent</span>
+      </button>
+    </div>
+  </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2><span class="eyebrow">${c.type==='sale'?'Sale File':'Charter File'}</span>&nbsp; General Information</h2>
+    </div>
+    <div class="card-body">
+      <div class="row c3">
+        <div class="field"><label class="field-label">Case Number</label><input type="text" data-f="caseNumber" value="${esc(c.caseNumber)}" placeholder="000-YYYY"></div>
+        <div class="field"><label class="field-label">Client Name</label><input type="text" data-f="clientName" value="${esc(c.clientName)}" placeholder="e.g. J. Harrington"></div>
+        <div class="field"><label class="field-label">Yacht Name</label><input type="text" data-f="yachtName" value="${esc(c.yachtName)}" placeholder="e.g. M/Y Serenity"></div>
+      </div>
+      <div class="row c3">
+        <div class="field"><label class="field-label">Person in Charge</label><input type="text" data-f="personInCharge" value="${esc(c.personInCharge)}" placeholder="Staff member"></div>
+        ${c.type==='sale' ? `<div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>` : ''}
+      </div>
+      ${c.type==='sale' ? '' : `
+      <div class="row c4">
+        <div class="field"><label class="field-label">Charter Start Date</label><input type="date" data-f="charterStartDate" value="${esc(c.charterStartDate)}"></div>
+        <div class="field"><label class="field-label">Charter Start Time</label><input type="time" data-f="charterStartTime" value="${esc(c.charterStartTime)}"></div>
+        <div class="field"><label class="field-label">Charter End Date</label><input type="date" data-f="charterEndDate" value="${esc(c.charterEndDate)}"></div>
+        <div class="field"><label class="field-label">Charter End Time</label><input type="time" data-f="charterEndTime" value="${esc(c.charterEndTime)}"></div>
+      </div>
+      <div class="row c3">
+        <div class="field"><label class="field-label">Departure Location</label><input type="text" data-f="departureLocation" value="${esc(c.departureLocation)}"></div>
+        <div class="field"><label class="field-label">Arrival Location</label><input type="text" data-f="arrivalLocation" value="${esc(c.arrivalLocation)}"></div>
+        <div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>
+      </div>`}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Financials</span>&nbsp; ${c.type==='sale' ? 'Sale Price & VAT' : 'Rate, VAT & APA'}</h2></div>
+    <div class="card-body">
+      ${c.type==='sale' ? `
+      <div class="row c3">
+        <div class="field"><label class="field-label">Sale Price (€)</label><input type="text" inputmode="decimal" data-f="charterRate" data-money value="${esc(c.charterRate)}"></div>
+        <div class="field"><label class="field-label">VAT</label>
+          <select data-f="saleVatPaid">
+            <option value="" ${c.saleVatPaid===''?'selected':''}>— Not set —</option>
+            <option value="paid" ${c.saleVatPaid==='paid'?'selected':''}>VAT Paid</option>
+            <option value="unpaid" ${c.saleVatPaid==='unpaid'?'selected':''}>VAT Not Paid</option>
+          </select>
+        </div>
+        <div class="field"><label class="field-label">Deposit / Confirmatory Earnest (%)</label><input type="text" inputmode="decimal" data-f="saleDepositPct" value="${esc(c.saleDepositPct)}"></div>
+      </div>` : `
+      <div class="row c4">
+        <div class="field"><label class="field-label">Charter Rate (€)</label><input type="text" inputmode="decimal" data-f="charterRate" data-money value="${esc(c.charterRate)}"></div>
+        <div class="field"><label class="field-label">VAT %</label><input type="text" inputmode="decimal" data-f="vatPct" value="${esc(c.vatPct)}"></div>
+        <div class="field"><label class="field-label">VAT Total (€) ${c.vatOverride!==null && c.vatOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="vatOverride" data-money placeholder="${vatAmt.toFixed(2)}" value="${c.vatOverride!==null?esc(c.vatOverride):''}"></div>
+        <div class="field"><label class="field-label">Delivery Fee (€)</label><input type="text" inputmode="decimal" data-f="deliveryFee" data-money value="${esc(c.deliveryFee)}" placeholder="0.00"></div>
+      </div>
+      <div class="row c2">
+        <div class="field"><label class="field-label">APA %</label><input type="text" inputmode="decimal" data-f="apaPct" value="${esc(c.apaPct)}"></div>
+        <div class="field"><label class="field-label">APA Total (€) ${c.apaOverride!==null && c.apaOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="apaOverride" data-money placeholder="${apaAmt.toFixed(2)}" value="${c.apaOverride!==null?esc(c.apaOverride):''}"></div>
+      </div>`}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Parties</span>&nbsp; Brokers & Commission</h2></div>
+    <div class="card-body">
+      <div class="divider-label">Retail Broker</div>
+      <div class="row c4">
+        <div class="field"><label class="field-label">Broker Name</label><input type="text" data-f="retailBrokerName" value="${esc(c.retailBrokerName)}"></div>
+        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="retailAgencyName" value="${esc(c.retailAgencyName)}"></div>
+        <div class="field"><label class="field-label">Commission %</label><input type="text" inputmode="decimal" data-f="retailCommissionPct" value="${esc(c.retailCommissionPct)}"></div>
+        <div class="field"><label class="field-label">Total ${c.retailCommissionOverride!==null && c.retailCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="retailCommissionOverride" data-money placeholder="${retailComm.toFixed(2)}" value="${c.retailCommissionOverride!==null?esc(c.retailCommissionOverride):''}"></div>
+      </div>
+      <div class="divider-label">Central Agent</div>
+      <div class="row c4">
+        <div class="field"><label class="field-label">Broker Name</label><input type="text" data-f="caBrokerName" value="${esc(c.caBrokerName)}"></div>
+        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="caAgencyName" value="${esc(c.caAgencyName)}"></div>
+        <div class="field"><label class="field-label">Commission %</label><input type="text" inputmode="decimal" data-f="caCommissionPct" value="${esc(c.caCommissionPct)}"></div>
+        <div class="field"><label class="field-label">Total (€) ${c.caCommissionOverride!==null && c.caCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="caCommissionOverride" data-money placeholder="${caComm.toFixed(2)}" value="${c.caCommissionOverride!==null?esc(c.caCommissionOverride):''}"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Schedule</span>&nbsp; Payments & Reminders</h2></div>
+    ${unifiedRows.some(r=>r.type==='fixed' && r.data.cascadeNote) ? `
+    <div class="no-print" style="padding:12px 20px;background:var(--danger-bg);border-bottom:1px solid var(--line);color:var(--danger);font-size:12.5px;font-weight:600;">
+      ⚠ A shortfall was detected and has cascaded through the payment schedule below — check the flagged rows.
+    </div>` : ''}
+    <div class="card-body" style="padding:0;">
+      <table>
+        <thead><tr><th style="width:26px;"></th><th style="width:40px;"></th><th>Payment</th><th>Direction</th><th>Due Date</th><th style="text-align:right;">Amount</th><th>Status</th><th>Paid on</th><th class="no-print"></th></tr></thead>
+        <tbody>
+          ${unifiedRows.map((row,i)=>{
+            const badgeFor = (status, due) => {
+              const urg = paymentUrgency(due, status);
+              return status==='paid' ? '<span class="badge badge-ok">Paid</span>'
+                   : urg==='danger' ? '<span class="badge badge-danger">Overdue</span>'
+                   : urg==='warn' ? '<span class="badge badge-warn">Due soon</span>'
+                   : '<span class="badge badge-idle">Pending</span>';
+            };
+            const moveButtons = `
+                <span class="drag-handle" data-drag-id="${row.id}" title="Drag to reorder">⠿</span>
+                <button class="btn btn-ghost btn-sm" style="padding:2px 5px;${i===0?'opacity:.3;cursor:default;':''}" data-move-id="${row.id}" data-move-dir="up" title="Move up" ${i===0?'disabled':''}>▲</button>
+                <button class="btn btn-ghost btn-sm" style="padding:2px 5px;${i===unifiedRows.length-1?'opacity:.3;cursor:default;':''}" data-move-id="${row.id}" data-move-dir="down" title="Move down" ${i===unifiedRows.length-1?'disabled':''}>▼</button>`;
+
+            if(row.type==='fixed'){
+              const p = row.data;
+              const st = paymentStatus(c,p.key);
+              return `<tr data-row-id="${row.id}">
+              <td><input type="checkbox" data-pay-toggle="${p.key}" ${st.status==='paid'?'checked':''}></td>
+              <td class="no-print" style="white-space:nowrap;">${moveButtons}</td>
+              <td>
+                <strong>${esc(p.label)}</strong><div class="muted" style="font-size:11.5px;margin-top:2px;">${esc(p.note)}</div>
+                ${p.cascadeNote ? `<div style="color:var(--danger);font-size:11px;font-weight:700;margin-top:4px;display:flex;align-items:center;gap:4px;">⚠ ${esc(p.cascadeNote)}</div>` : ''}
+                <input type="text" data-override="note" data-override-key="${p.key}" value="${esc(p.rowNote)}" placeholder="Add a note (e.g. shortfall, adjustment)…" style="margin-top:6px;font-size:11.5px;padding:5px 8px;">
+              </td>
+              <td class="muted">${esc(p.party)}</td>
+              <td class="mono">${p.manualDue ? `<input type="date" data-sale-due="${p.key}" value="${esc(p.due)}" style="width:150px;">` : fmtDate(p.due)}</td>
+              <td style="text-align:right;">
+                ${p.manualAmount
+                  ? `<input type="text" inputmode="decimal" data-f="${p.manualField}" data-money style="width:120px;text-align:right;" value="${esc(c[p.manualField])}" placeholder="0.00">`
+                  : `<input type="text" inputmode="decimal" data-override="amount" data-money data-override-key="${p.key}" style="width:120px;text-align:right;" value="${p.amountOverridden?esc(c.paymentOverrides[p.key].amount):''}" placeholder="${p.expectedAmount!==null&&p.expectedAmount!==undefined?p.expectedAmount.toFixed(2):'0.00'}">
+                     ${p.amountOverridden ? `<div class="muted" style="font-size:10.5px;margin-top:2px;">expected ${fmtMoney(p.expectedAmount)}</div>` : ''}`}
+              </td>
+              <td>${badgeFor(st.status, p.due)}</td>
+              <td><input type="date" data-pay-date="${p.key}" value="${esc(st.paidDate)}" style="width:150px;"></td>
+              <td class="no-print"><button class="attach-remove" data-hide-payment="${p.key}" title="Remove from this file">×</button></td>
+            </tr>`;
+            }else{
+              const cp = row.data, idx = row.idx;
+              return `<tr data-row-id="${row.id}">
+              <td><input type="checkbox" data-custom-pay-toggle="${idx}" ${cp.status==='paid'?'checked':''}></td>
+              <td class="no-print" style="white-space:nowrap;">${moveButtons}</td>
+              <td>
+                <input type="text" data-custom="description" data-custom-idx="${idx}" value="${esc(cp.description)}" placeholder="Payment description" style="margin-bottom:5px;">
+                <input type="text" data-custom="reason" data-custom-idx="${idx}" value="${esc(cp.reason)}" placeholder="Reason / notes" style="font-size:11.5px;">
+              </td>
+              <td class="muted">
+                <select data-custom="direction" data-custom-idx="${idx}" style="font-size:12px;padding:4px 6px;">
+                  <option value="in" ${cp.direction==='in'?'selected':''}>Incoming</option>
+                  <option value="out" ${cp.direction==='out'?'selected':''}>Outgoing</option>
+                </select>
+              </td>
+              <td><input type="date" data-custom="due" data-custom-idx="${idx}" value="${esc(cp.due)}" style="width:150px;"></td>
+              <td style="text-align:right;"><input type="text" inputmode="decimal" data-custom="amount" data-money data-custom-idx="${idx}" value="${esc(cp.amount)}" placeholder="0.00" style="width:120px;text-align:right;"></td>
+              <td>${badgeFor(cp.status, cp.due)}</td>
+              <td><input type="date" data-custom-pay-date="${idx}" value="${esc(cp.paidDate)}" style="width:150px;"></td>
+              <td class="no-print"><button class="attach-remove" data-custom-remove="${idx}" title="Remove payment">×</button></td>
+            </tr>`;
+            }
+          }).join('')}
+        </tbody>
+      </table>
+      <div class="no-print" style="padding:14px 20px;border-top:1px solid var(--line);">
+        <button class="btn btn-ghost btn-sm" data-custom-add>+ Add extra payment</button>
+        ${hiddenPresets.length ? `
+        <div style="margin-top:12px;font-size:11.5px;color:var(--ink-soft);">
+          Removed from this file: ${hiddenPresets.map(h=>`<button class="btn btn-ghost btn-sm" data-restore-payment="${h.key}" style="margin:3px 6px 0 0;">↺ ${esc(h.label)}</button>`).join('')}
+        </div>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <div class="row c2">
+    <div class="card">
+      <div class="card-head"><h2><span class="eyebrow">Checklist</span>&nbsp; Attachments</h2></div>
+      <div class="card-body">
+        ${renderAttachmentRow(c,'contract','Contract')}
+        ${renderAttachmentRow(c,'passport','Client Passport')}
+        ${renderAttachmentRow(c,'ourInvoice','Our Invoice')}
+        ${renderAttachmentRow(c,'otherBrokerInvoice', c.role==='retail' ? 'Central Agent Invoice' : 'Retail Broker Invoice')}
+        ${c.type!=='sale' && c.role==='retail' ? `<div class="checklist-item">
+          <input type="checkbox" data-att="prefListSent" ${c.attachments.prefListSent?'checked':''} id="pref1">
+          <label for="pref1">Preference list sent to client</label>
+        </div>` : ''}
+        ${c.type!=='sale' && c.role==='retail' ? `<div class="checklist-item">
+          <input type="checkbox" data-att="prefListSentToCrew" ${c.attachments.prefListSentToCrew?'checked':''} id="pref3">
+          <label for="pref3">Preference list sent to crew</label>
+        </div>` : ''}
+        ${c.type!=='sale' ? `<div class="checklist-item">
+          <input type="checkbox" data-att="prefListReceived" ${c.attachments.prefListReceived?'checked':''} id="pref2">
+          <label for="pref2">Preference list received</label>
+        </div>` : ''}
+        <div class="divider-label">Addendums</div>
+        ${c.attachments.addendums.map((a,i)=>`
+          <div class="checklist-item">
+            <input type="checkbox" data-addendum-toggle="${i}" ${a.done?'checked':''}>
+            <input type="text" data-addendum-name="${i}" value="${esc(a.name)}" placeholder="Addendum ${i+1} description">
+            <button class="attach-remove" data-addendum-remove="${i}" title="Remove">×</button>
+          </div>
+        `).join('')}
+        <button class="btn btn-ghost btn-sm no-print" style="margin-top:10px;" data-addendum-add>+ Add addendum</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2><span class="eyebrow">Free text</span>&nbsp; Notes</h2></div>
+      <div class="card-body">
+        <textarea data-f="notes" rows="12" placeholder="Internal notes about this charter file…">${esc(c.notes)}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Reconciliation</span>&nbsp; Incoming vs Outgoing</h2></div>
+    <div class="card-body" style="padding:0;">
+      <table>
+        <thead><tr><th>Description</th><th>Reason / Notes</th><th>Due</th><th style="text-align:right;">Incoming (€)</th><th style="text-align:right;">Outgoing (€)</th></tr></thead>
+        <tbody>
+          ${ledger.rows.length ? ledger.rows.map(r=>`
+            <tr>
+              <td>${esc(r.description)}${r.isRecon?' <span class="override-flag">· manual</span>':''}</td>
+              <td class="muted">${esc(r.reason)||'—'}</td>
+              <td class="mono">${r.due?fmtDate(r.due):'—'}</td>
+              <td style="text-align:right;" class="amount">${r.direction==='in' ? (r.amount===null||r.amount===undefined?'<span class="muted">not entered</span>':fmtMoney(r.amount)) : '—'}</td>
+              <td style="text-align:right;" class="amount">${r.direction==='out' ? (r.amount===null||r.amount===undefined?'<span class="muted">not entered</span>':fmtMoney(r.amount)) : '—'}</td>
+            </tr>`).join('') : `<tr><td colspan="5">${emptyState('Nothing to reconcile yet','Amounts will appear here once the charter rate and payment schedule are filled in.')}</td></tr>`}
+        </tbody>
+        ${ledger.rows.length ? `<tfoot>
+          <tr>
+            <td colspan="3" style="text-align:right;font-weight:700;">Total</td>
+            <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(ledger.totalIn)}</td>
+            <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(ledger.totalOut)}</td>
+          </tr>
+          <tr>
+            <td colspan="3" style="text-align:right;font-weight:700;">Balance (In − Out)</td>
+            <td colspan="2" style="text-align:right;font-weight:700;" class="amount">
+              ${Math.abs(ledger.diff)<0.005
+                ? '<span class="badge badge-ok">Matches</span>'
+                : `<span class="badge badge-danger">${fmtMoney(ledger.diff)}</span>`}
+            </td>
+          </tr>
+        </tfoot>` : ''}
+      </table>
+      ${ledger.rows.length && Math.abs(ledger.diff)>=0.005 ? `
+      <div class="no-print" style="padding:16px 20px;border-top:1px solid var(--line);background:var(--danger-bg);">
+        <div style="font-size:12.5px;color:var(--danger);font-weight:700;margin-bottom:8px;">
+          Incoming and outgoing totals don't match (difference: ${fmtMoney(ledger.diff)}). If this is a known leftover amount, record it below:
+        </div>
+        <div class="row c3">
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Adjustment amount (€)</label><input type="text" inputmode="decimal" data-recon="amount" data-money value="${esc(c.reconciliation.amount)}" placeholder="0.00"></div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Add to</label>
+            <select data-recon="direction">
+              <option value="in" ${c.reconciliation.direction==='in'?'selected':''}>Incoming</option>
+              <option value="out" ${c.reconciliation.direction==='out'?'selected':''}>Outgoing</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Note</label><input type="text" data-recon="note" value="${esc(c.reconciliation.note)}" placeholder="e.g. bank fee, rounding, refuso"></div>
+        </div>
+      </div>` : ''}
+    </div>
+  </div>
+  `;
+}
+
+function renderAttachmentRow(c, key, label){
+  return `<div class="checklist-item">
+    <input type="checkbox" data-att="${key}" ${c.attachments[key]?'checked':''} id="att-${key}">
+    <label for="att-${key}">${esc(label)}</label>
+  </div>`;
+}
+
+function renderStatusChip(c, withLabel){
+  const phase = getEffectivePhase(c);
+  const meta = STATUS_META[phase] || STATUS_META.negotiation;
+  if(withLabel===false){
+    return `<span class="status-dot" style="background:${meta.dot};" title="${esc(meta.label)}"></span>`;
+  }
+  return `<span class="status-chip" title="${esc(meta.label)}"><span class="status-dot" style="background:${meta.dot};"></span>${esc(meta.label)}</span>`;
+}
+
+function renderStatusControl(c){
+  const phase = getEffectivePhase(c);
+  const auto = (phase==='in_progress' || phase==='completed');
+  const readyToClose = phase==='completed' && isReadyToClose(c) && c.status!=='closed';
+  const selectableOptions = [
+    ['negotiation','In Negotiation'],
+    ['option','Option'],
+    ['contract','Under Contract'],
+    ['confirmed','Confirmed'],
+    ['closed','Closed']
+  ];
+  let html = `<span style="display:inline-flex;align-items:center;gap:8px;">${renderStatusChip(c, false)}<select class="no-print" data-status-select style="font-size:12.5px;font-weight:600;padding:7px 10px;">
+    ${selectableOptions.map(([v,l])=>`<option value="${v}" ${c.status===v?'selected':''}>${l}</option>`).join('')}
+  </select></span>`;
+  if(auto){
+    html += ` <span class="badge ${STATUS_META[phase].cls}">${STATUS_META[phase].label}</span>`;
+  }
+  if(readyToClose){
+    html += ` <span class="badge badge-ok" title="Charter completed, every payment marked paid, and the ledger balances">Ready to close</span>`;
+  }
+  return html;
+}
+
+function emptyState(title, sub){
+  return `<div class="empty-state"><div class="mark-big">W</div><div style="font-family:'Arial','Poppins',sans-serif;font-size:16px;color:var(--ink);font-weight:700;">${esc(title)}</div><div style="margin-top:4px;">${esc(sub)}</div></div>`;
+}
+
+/* ---------------- events ---------------- */
+function wireGlobalEvents(){
+  const app = document.getElementById('app');
+
+  app.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:el.dataset.tab, caseId:null};
+    render();
+  }));
+
+  const newBtn = document.getElementById('btn-new-case');
+  if(newBtn) newBtn.addEventListener('click', ()=>{
+    const c = newCase('charter');
+    STATE.cases.push(c);
+    STATE.view = {tab:'case', caseId:c.id};
+    persistAndRender();
+  });
+  const newSaleBtn = document.getElementById('btn-new-sale');
+  if(newSaleBtn) newSaleBtn.addEventListener('click', ()=>{
+    const c = newCase('sale');
+    STATE.cases.push(c);
+    STATE.view = {tab:'case', caseId:c.id};
+    persistAndRender();
+  });
+  const signOutBtn = document.getElementById('btn-sign-out');
+  if(signOutBtn) signOutBtn.addEventListener('click', signOut);
+
+  const newFeedbackBtn = document.getElementById('btn-new-feedback');
+  if(newFeedbackBtn) newFeedbackBtn.addEventListener('click', ()=>{
+    const f = newFeedback();
+    STATE.feedback.push(f);
+    STATE.view = {tab:'feedback', feedbackId:f.id};
+    persistAndRender();
+  });
+  const copyLinkBtn = document.getElementById('btn-copy-form-link');
+  if(copyLinkBtn) copyLinkBtn.addEventListener('click', ()=>copyToClipboard(STATE.feedbackSync.formLink || JOTFORM_URL));
+  const importCsvBtn = document.getElementById('btn-import-csv');
+  const fileInputCsv = document.getElementById('file-import-csv');
+  if(importCsvBtn) importCsvBtn.addEventListener('click', ()=>fileInputCsv.click());
+  if(fileInputCsv) fileInputCsv.addEventListener('change', handleImportCsv);
+  const syncBtn = document.getElementById('btn-sync-feedback');
+  if(syncBtn) syncBtn.addEventListener('click', syncFeedbackFromServer);
+  app.querySelectorAll('[data-fbsync]').forEach(el=>{
+    el.addEventListener(liveEventFor(el), ()=>{
+      STATE.feedbackSync[el.dataset.fbsync] = el.value;
+      persistOnly();
+      softRerenderCase(el);
+    });
+  });
+
+  const exportBtn = document.getElementById('btn-export');
+  if(exportBtn) exportBtn.addEventListener('click', exportData);
+  const importBtn = document.getElementById('btn-import');
+  const fileInput = document.getElementById('file-import');
+  if(importBtn) importBtn.addEventListener('click', ()=>fileInput.click());
+  if(fileInput) fileInput.addEventListener('change', handleImport);
+
+  app.querySelectorAll('[data-open-case]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'case', caseId:el.dataset.openCase};
+    render();
+  }));
+  app.querySelectorAll('[data-back-to-list]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'cases', caseId:null};
+    render();
+  }));
+  app.querySelectorAll('[data-delete-case]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const id = el.dataset.deleteCase;
+    if(STATE.view.confirmDelete === id){
+      STATE.cases = STATE.cases.filter(c=>c.id!==id);
+      STATE.view = {tab:'cases', caseId:null, confirmDelete:null};
+      persistAndRender();
+    }else{
+      STATE.view.confirmDelete = id;
+      render();
+    }
+  }));
+  app.querySelectorAll('[data-delete-case-list]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const id = el.dataset.deleteCaseList;
+    if(STATE.view.confirmDelete === id){
+      STATE.cases = STATE.cases.filter(c=>c.id!==id);
+      STATE.view.confirmDelete = null;
+      persistAndRender();
+    }else{
+      STATE.view.confirmDelete = id;
+      render();
+    }
+  }));
+  app.querySelectorAll('[data-cancel-delete]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    STATE.view.confirmDelete = null;
+    render();
+  }));
+
+  /* --- feedback list & detail --- */
+  app.querySelectorAll('[data-open-feedback]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'feedback', feedbackId:el.dataset.openFeedback};
+    render();
+  }));
+  app.querySelectorAll('[data-back-to-feedback-list]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'feedback', feedbackId:null};
+    render();
+  }));
+  app.querySelectorAll('[data-delete-feedback]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const id = el.dataset.deleteFeedback;
+    if(STATE.view.confirmDeleteFeedback === id){
+      STATE.feedback = STATE.feedback.filter(f=>f.id!==id);
+      STATE.view = {tab:'feedback', feedbackId:null, confirmDeleteFeedback:null};
+      persistAndRender();
+    }else{
+      STATE.view.confirmDeleteFeedback = id;
+      render();
+    }
+  }));
+  app.querySelectorAll('[data-delete-feedback-list]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const id = el.dataset.deleteFeedbackList;
+    if(STATE.view.confirmDeleteFeedback === id){
+      STATE.feedback = STATE.feedback.filter(f=>f.id!==id);
+      STATE.view.confirmDeleteFeedback = null;
+      persistAndRender();
+    }else{
+      STATE.view.confirmDeleteFeedback = id;
+      render();
+    }
+  }));
+  app.querySelectorAll('[data-cancel-delete-feedback]').forEach(el=>el.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    STATE.view.confirmDeleteFeedback = null;
+    render();
+  }));
+  const feedbackSearchQ = document.getElementById('feedback-search-q');
+  if(feedbackSearchQ) feedbackSearchQ.addEventListener('input', (e)=>{ STATE.view.feedbackQuery = e.target.value; render(); focusEl('feedback-search-q'); });
+  const feedbackFilterYacht = document.getElementById('feedback-filter-yacht');
+  if(feedbackFilterYacht) feedbackFilterYacht.addEventListener('change', (e)=>{ STATE.view.yachtFilter = e.target.value; render(); });
+
+  /* --- booking calendar --- */
+  app.querySelectorAll('[data-cal-nav]').forEach(el=>el.addEventListener('click', ()=>{
+    const now = new Date();
+    let year = STATE.view.calYear!==undefined ? STATE.view.calYear : now.getFullYear();
+    let month = STATE.view.calMonth!==undefined ? STATE.view.calMonth : now.getMonth();
+    const dir = el.dataset.calNav;
+    if(dir==='today'){ year = now.getFullYear(); month = now.getMonth(); }
+    else if(dir==='prev'){ month -= 1; if(month<0){ month=11; year-=1; } }
+    else if(dir==='next'){ month += 1; if(month>11){ month=0; year+=1; } }
+    STATE.view.calYear = year;
+    STATE.view.calMonth = month;
+    render();
+  }));
+  const calFilterYacht = document.getElementById('cal-filter-yacht');
+  if(calFilterYacht) calFilterYacht.addEventListener('change', (e)=>{ STATE.view.calYachtFilter = e.target.value; render(); });
+
+  const fbId = STATE.view.tab==='feedback' ? STATE.view.feedbackId : null;
+  const f = fbId ? getFeedback(fbId) : null;
+  if(f){
+    app.querySelectorAll('[data-fb]').forEach(el=>{
+      if(el.dataset.fb==='linkedCaseId') return; // handled separately below, with auto-fill
+      el.addEventListener(liveEventFor(el), ()=>{
+        f[el.dataset.fb] = el.value;
+        persistOnly();
+        softRerenderCase(el);
+      });
+    });
+    const linkedCaseSelect = app.querySelector('[data-fb="linkedCaseId"]');
+    if(linkedCaseSelect) linkedCaseSelect.addEventListener('change', ()=>{
+      f.linkedCaseId = linkedCaseSelect.value;
+      const cs = getCase(f.linkedCaseId);
+      if(cs){
+        if(!f.yachtName && cs.yachtName) f.yachtName = cs.yachtName;
+        if(!f.clientName && cs.clientName) f.clientName = cs.clientName;
+        if(!f.charterStartDate && cs.charterStartDate) f.charterStartDate = cs.charterStartDate;
+        if(!f.charterEndDate && cs.charterEndDate) f.charterEndDate = cs.charterEndDate;
+      }
+      persistAndRender();
+    });
+    app.querySelectorAll('[data-fb-bool]').forEach(el=>el.addEventListener('click', ()=>{
+      f[el.dataset.fbBool] = el.dataset.fbBoolValue;
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-rating-field]').forEach(el=>el.addEventListener('click', ()=>{
+      const field = el.dataset.ratingField;
+      const val = el.dataset.ratingValue;
+      if(field==='expectations') f.expectations = val;
+      else if(field.startsWith('rating_')) f.ratings[field.slice(7)] = val;
+      persistAndRender();
+    }));
+  }
+
+  const searchQ = document.getElementById('search-q');
+  if(searchQ) searchQ.addEventListener('input', (e)=>{ STATE.view.query = e.target.value; render(); focusEl('search-q'); });
+  const filterRole = document.getElementById('filter-role');
+  if(filterRole) filterRole.addEventListener('change', (e)=>{ STATE.view.roleFilter = e.target.value; render(); });
+  app.querySelectorAll('[data-sort-field]').forEach(el=>el.addEventListener('click', ()=>{
+    const field = el.dataset.sortField;
+    if(STATE.view.sortField === field){
+      STATE.view.sortDir = STATE.view.sortDir==='asc' ? 'desc' : 'asc';
+    }else{
+      STATE.view.sortField = field;
+      STATE.view.sortDir = (field==='charterStartDate' || field==='charterEndDate') ? 'desc' : 'asc';
+    }
+    render();
+  }));
+
+  /* case detail field bindings */
+  const cid = STATE.view.caseId;
+  const c = cid ? getCase(cid) : null;
+  if(c){
+    app.querySelectorAll('[data-f]').forEach(el=>{
+      el.addEventListener(liveEventFor(el), ()=>{
+        const key = el.dataset.f;
+        const oldVal = c[key];
+        c[key] = el.value;
+        if(key==='charterStartDate' && (c.charterEndDate==='' || c.charterEndDate===oldVal)){
+          c.charterEndDate = el.value;
+        }
+        persistOnly();
+        softRerenderCase(el);
+      });
+    });
+    app.querySelectorAll('[data-set-role]').forEach(el=>el.addEventListener('click', ()=>{
+      c.role = el.dataset.setRole;
+      if(c.role==='retail' && !c.retailAgencyName) c.retailAgencyName = 'West Coast International';
+      if(c.role==='central' && !c.caAgencyName) c.caAgencyName = 'West Coast International';
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-set-type]').forEach(el=>el.addEventListener('click', ()=>{
+      c.type = el.dataset.setType;
+      persistAndRender();
+    }));
+    const statusSelect = app.querySelector('[data-status-select]');
+    if(statusSelect) statusSelect.addEventListener('change', ()=>{
+      c.status = statusSelect.value;
+      persistAndRender();
+    });
+    app.querySelectorAll('[data-pay-toggle]').forEach(el=>el.addEventListener('change', ()=>{
+      const key = el.dataset.payToggle;
+      const cur = paymentStatus(c,key);
+      c.payments[key] = {status: el.checked?'paid':'pending', paidDate: el.checked ? (cur.paidDate || toISODate(new Date())) : cur.paidDate};
+      if(el.checked){
+        /* if the amount was never edited, "lock in" the calculated figure into
+           the field itself (instead of leaving it as a greyed-out placeholder)
+           so the record shows the amount actually received/paid, as if typed */
+        const item = buildPaymentSchedule(c).find(p=>p.key===key);
+        if(item && !item.manualAmount && item.expectedAmount!==null && item.expectedAmount!==undefined){
+          if(!c.paymentOverrides) c.paymentOverrides = {};
+          const ov = c.paymentOverrides[key] || {amount:'', note:''};
+          if(ov.amount==='' || ov.amount===undefined || ov.amount===null){
+            ov.amount = item.expectedAmount.toFixed(2);
+          }
+          c.paymentOverrides[key] = ov;
+        }
+      }
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-pay-date]').forEach(el=>el.addEventListener('change', ()=>{
+      const key = el.dataset.payDate;
+      const cur = paymentStatus(c,key);
+      c.payments[key] = {status:cur.status, paidDate: el.value};
+      persistOnly();
+    }));
+    app.querySelectorAll('[data-hide-payment]').forEach(el=>el.addEventListener('click', ()=>{
+      if(!c.hiddenPayments) c.hiddenPayments = {};
+      c.hiddenPayments[el.dataset.hidePayment] = true;
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-sale-due]').forEach(el=>el.addEventListener('change', ()=>{
+      if(!c.saleDueDates) c.saleDueDates = {};
+      c.saleDueDates[el.dataset.saleDue] = el.value;
+      persistAndRender();
+    }));
+    /* Manual-drag reordering using Pointer Events with pointer capture.
+       Pointer capture keeps every subsequent move/up event routed to the
+       handle that started the drag even if the cursor slips outside the row
+       or near the edge of a small preview panel — a plain mousemove/mouseup
+       pair (or the native HTML5 drag API) loses the gesture in exactly that
+       situation, which is what was breaking it. A small auto-scroll near the
+       top/bottom edge makes long tables reachable too.
+       Preset and extra payments share one ordered list (see
+       getUnifiedScheduleRows) so either can be dragged anywhere among the
+       other, not just reordered within its own group. */
+    function startRowDrag(handle, srcRow, srcId, e, findRow, applyReorder){
+      if(e.button!==undefined && e.button!==0) return;
+      e.preventDefault();
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+      srcRow.classList.add('dragging-row');
+      let overRow = null;
+      let overPosition = null; // 'before' | 'after'
+      let scrollTimer = null;
+      function clearIndicator(){
+        if(overRow) overRow.classList.remove('drag-insert-before','drag-insert-after');
+      }
+      function autoScroll(clientY){
+        clearInterval(scrollTimer);
+        const edge = 70;
+        if(clientY < edge) scrollTimer = setInterval(()=>window.scrollBy(0,-18), 16);
+        else if(clientY > window.innerHeight - edge) scrollTimer = setInterval(()=>window.scrollBy(0,18), 16);
+      }
+      function onMove(ev){
+        autoScroll(ev.clientY);
+        const row = findRow(ev.clientX, ev.clientY);
+        if(row && row!==srcRow){
+          const rect = row.getBoundingClientRect();
+          const before = (ev.clientY - rect.top) < rect.height/2;
+          if(row!==overRow) clearIndicator();
+          row.classList.remove('drag-insert-before','drag-insert-after');
+          row.classList.add(before ? 'drag-insert-before' : 'drag-insert-after');
+          overRow = row;
+          overPosition = before ? 'before' : 'after';
+        }else{
+          clearIndicator();
+          overRow = null;
+          overPosition = null;
+        }
+      }
+      function onUp(ev){
+        clearInterval(scrollTimer);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        try{ handle.releasePointerCapture(ev.pointerId); }catch(err){}
+        srcRow.classList.remove('dragging-row');
+        clearIndicator();
+        if(overRow) applyReorder(srcId, overRow, overPosition);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    }
+    function reorderUnified(srcId, targetId, position){
+      if(!targetId || targetId===srcId) return;
+      const order = getUnifiedScheduleRows(c).map(r=>r.id);
+      const from = order.indexOf(srcId);
+      if(from===-1) return;
+      order.splice(from,1);
+      let to = order.indexOf(targetId);
+      if(to===-1) return;
+      if(position==='after') to += 1;
+      order.splice(to,0,srcId);
+      c.paymentOrder = order;
+      persistAndRender();
+    }
+    app.querySelectorAll('[data-drag-id]').forEach(handle=>{
+      handle.addEventListener('pointerdown', (e)=>{
+        const srcRow = handle.closest('tr');
+        if(!srcRow) return;
+        startRowDrag(handle, srcRow, handle.dataset.dragId, e,
+          (x,y)=>{ const el=document.elementFromPoint(x,y); return el ? el.closest('tr[data-row-id]') : null; },
+          (srcId, targetRow, position)=> reorderUnified(srcId, targetRow.dataset.rowId, position));
+      });
+    });
+    /* Simple, always-reliable fallback next to the drag handle: plain click
+       buttons that swap the row with its neighbour. */
+    app.querySelectorAll('[data-move-id]').forEach(el=>el.addEventListener('click', ()=>{
+      const id = el.dataset.moveId;
+      const dir = el.dataset.moveDir;
+      const order = getUnifiedScheduleRows(c).map(r=>r.id);
+      const idx = order.indexOf(id);
+      const swapWith = dir==='up' ? idx-1 : idx+1;
+      if(idx<0 || swapWith<0 || swapWith>=order.length) return;
+      [order[idx], order[swapWith]] = [order[swapWith], order[idx]];
+      c.paymentOrder = order;
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-override]').forEach(el=>{
+      el.addEventListener(liveEventFor(el), ()=>{
+        if(!c.paymentOverrides) c.paymentOverrides = {};
+        const key = el.dataset.overrideKey;
+        const field = el.dataset.override; // 'amount' | 'note'
+        if(!c.paymentOverrides[key]) c.paymentOverrides[key] = {amount:'', note:''};
+        c.paymentOverrides[key][field] = el.value;
+        persistOnly();
+        softRerenderCase(el);
+      });
+    });
+    /* format every money field to two decimals once the person leaves it —
+       e.g. typing "40000" becomes "40000.00" on blur — so every amount in
+       the file follows the same €1,000.00-style formatting */
+    app.querySelectorAll('input[type="text"][data-money]').forEach(el=>{
+      el.addEventListener('blur', ()=>{
+        if(suppressMoneyBlur) return; // this blur was caused by our own re-render removing the element, not a real navigate-away
+        if(el.value==='') return;
+        const n = parseFloat(el.value);
+        if(isNaN(n)) return;
+        const formatted = n.toFixed(2);
+        el.value = formatted; // update what's on screen directly — no re-render needed for that part
+        if(el.dataset.f){
+          c[el.dataset.f] = formatted;
+        }else if(el.dataset.override){
+          if(!c.paymentOverrides) c.paymentOverrides = {};
+          const k = el.dataset.overrideKey;
+          if(!c.paymentOverrides[k]) c.paymentOverrides[k] = {amount:'', note:''};
+          c.paymentOverrides[k][el.dataset.override] = formatted;
+        }else if(el.dataset.custom){
+          c.customPayments[+el.dataset.customIdx][el.dataset.custom] = formatted;
+        }else if(el.dataset.recon){
+          c.reconciliation[el.dataset.recon] = formatted;
+        }
+        /* Deliberately NOT re-rendering here. A blur can fire at almost any
+           moment — mid-click into a different field, during a focus
+           transition the browser hasn't finished settling yet — and every
+           attempt to reconcile a render against "whatever has focus by the
+           time it runs" turned out to be a race that occasionally rebuilt
+           the DOM at exactly the wrong instant, silently eating keystrokes
+           the person had already typed into the next field. Updating the
+           input's own display value and the saved state (above) is enough:
+           it's correct on screen right now, and anything elsewhere that
+           depends on it (an "expected" placeholder, a cascade warning) will
+           catch up the next time something else naturally triggers a
+           render — which is always very soon. */
+        persistOnly();
+      });
+    });
+    app.querySelectorAll('[data-restore-payment]').forEach(el=>el.addEventListener('click', ()=>{
+      if(c.hiddenPayments) delete c.hiddenPayments[el.dataset.restorePayment];
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-att]').forEach(el=>el.addEventListener('change', ()=>{
+      c.attachments[el.dataset.att] = el.checked;
+      persistOnly();
+    }));
+    const addBtn = app.querySelector('[data-addendum-add]');
+    if(addBtn) addBtn.addEventListener('click', ()=>{
+      c.attachments.addendums.push({name:'', done:false});
+      persistAndRender();
+    });
+    app.querySelectorAll('[data-addendum-toggle]').forEach(el=>el.addEventListener('change', ()=>{
+      c.attachments.addendums[+el.dataset.addendumToggle].done = el.checked;
+      persistOnly();
+    }));
+    app.querySelectorAll('[data-addendum-name]').forEach(el=>el.addEventListener('input', ()=>{
+      c.attachments.addendums[+el.dataset.addendumName].name = el.value;
+      persistOnly();
+    }));
+    app.querySelectorAll('[data-addendum-remove]').forEach(el=>el.addEventListener('click', ()=>{
+      c.attachments.addendums.splice(+el.dataset.addendumRemove,1);
+      persistAndRender();
+    }));
+
+    /* extra / custom payments */
+    const addPayBtn = app.querySelector('[data-custom-add]');
+    if(addPayBtn) addPayBtn.addEventListener('click', ()=>{
+      c.customPayments.push({id: uid(), description:'', reason:'', direction:'out', amount:'', due:'', status:'pending', paidDate:''});
+      persistAndRender();
+    });
+    app.querySelectorAll('[data-custom-remove]').forEach(el=>el.addEventListener('click', ()=>{
+      c.customPayments.splice(+el.dataset.customRemove,1);
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-custom]').forEach(el=>{
+      el.addEventListener(liveEventFor(el), ()=>{
+        const idx = +el.dataset.customIdx;
+        const field = el.dataset.custom;
+        c.customPayments[idx][field] = el.value;
+        persistOnly();
+        softRerenderCase(el);
+      });
+    });
+    app.querySelectorAll('[data-custom-pay-toggle]').forEach(el=>el.addEventListener('change', ()=>{
+      const idx = +el.dataset.customPayToggle;
+      const cp = c.customPayments[idx];
+      cp.status = el.checked ? 'paid' : 'pending';
+      if(el.checked && !cp.paidDate) cp.paidDate = toISODate(new Date());
+      persistAndRender();
+    }));
+    app.querySelectorAll('[data-custom-pay-date]').forEach(el=>el.addEventListener('change', ()=>{
+      c.customPayments[+el.dataset.customPayDate].paidDate = el.value;
+      persistOnly();
+    }));
+
+    /* reconciliation adjustment */
+    app.querySelectorAll('[data-recon]').forEach(el=>{
+      el.addEventListener(liveEventFor(el), ()=>{
+        c.reconciliation[el.dataset.recon] = el.value;
+        persistOnly();
+        softRerenderCase(el);
+      });
+    });
+  }
+}
+
+function focusEl(id){
+  const el = document.getElementById(id);
+  if(el){ el.focus(); const v=el.value; el.value=''; el.value=v; }
+}
+
+/* re-render just the case view without losing input focus for text typing in other fields
+   — for simplicity & correctness with computed fields (commission/VAT/APA totals depending
+   on rate), we re-render the whole case view but keep focus on the active element by id/name. */
+let suppressMoneyBlur = false; // true only while softRerenderCase is tearing down & rebuilding the DOM
+function softRerenderCase(activeEl){
+  const active = document.activeElement;
+  const f = active && active.dataset ? active.dataset.f : null;
+  const fbField = active && active.dataset ? active.dataset.fb : null;
+  const customField = active && active.dataset ? active.dataset.custom : null;
+  const customIdx = active && active.dataset ? active.dataset.customIdx : null;
+  const reconField = active && active.dataset ? active.dataset.recon : null;
+  const overrideField = active && active.dataset ? active.dataset.override : null;
+  const overrideKey = active && active.dataset ? active.dataset.overrideKey : null;
+  const fbsyncField = active && active.dataset ? active.dataset.fbsync : null;
+  const canSelect = supportsSelectionRange(active);
+  const selStart = canSelect ? active.selectionStart : null;
+  const selEnd = canSelect ? active.selectionEnd : null;
+  /* Rebuilding the DOM below removes the currently-focused input, which makes
+     the browser fire a genuine 'blur' event on it as a side effect — even
+     though the person never actually left the field. The money-formatting
+     blur handler would otherwise treat that as "done typing" and format the
+     value after a single keystroke, which is exactly what was cutting typing
+     off after one digit. Suppress it for just this synchronous re-render. */
+  suppressMoneyBlur = true;
+  render();
+  suppressMoneyBlur = false;
+  let again = null;
+  if(f) again = document.querySelector(`[data-f="${f}"]`);
+  else if(fbField) again = document.querySelector(`[data-fb="${fbField}"]`);
+  else if(customField!=null && customIdx!=null) again = document.querySelector(`[data-custom="${customField}"][data-custom-idx="${customIdx}"]`);
+  else if(reconField) again = document.querySelector(`[data-recon="${reconField}"]`);
+  else if(overrideField && overrideKey) again = document.querySelector(`[data-override="${overrideField}"][data-override-key="${overrideKey}"]`);
+  else if(fbsyncField) again = document.querySelector(`[data-fbsync="${fbsyncField}"]`);
+  if(again){
+    again.focus();
+    if(canSelect && supportsSelectionRange(again)){
+      try{ again.setSelectionRange(selStart, selEnd); }catch(e){}
+    }else if(again.tagName==='INPUT' && again.type==='number'){
+      /* number inputs don't support setSelectionRange; re-assigning the value
+         after focus is what actually pushes the caret to the end in every
+         browser, which is what stops digits from being prepended (reversed)
+         on every keystroke. */
+      const v = again.value;
+      again.value = '';
+      again.value = v;
+    }
+  }
+}
+
+function persistOnly(){ tryPersistLocal(); }
+function persistAndRender(){ tryPersistLocal(); render(); }
+
+/* ---------------- export / import ---------------- */
+function exportData(){
+  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync}, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'charter-files-' + toISODate(new Date()) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Data exported');
+}
+function handleImport(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const parsed = JSON.parse(ev.target.result);
+      if(parsed && Array.isArray(parsed.cases)){
+        STATE.cases = normalizeCases(parsed.cases);
+        nextCaseSeq = parsed.nextCaseSeq || (STATE.cases.length+1);
+        STATE.feedback = normalizeFeedbackList(parsed.feedback||[]);
+        if(parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
+          STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
+        }
+        STATE.view = {tab:'cases', caseId:null};
+        persistAndRender();
+        showToast('Data imported successfully');
+      }else{
+        showToast('This file does not look like a valid export.', 'error');
+      }
+    }catch(err){
+      showToast('Could not read this file: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+/* ---------------- Jotform CSV import (client feedback) ----------------
+   Jotform's CSV export uses the visible question text as column headers, so
+   we match column names loosely against the question wording rather than an
+   exact schema. Every field is a normal editable field afterwards, so a
+   partial or slightly-off match is easy to fix by hand in the app. */
+function parseCsv(text){
+  // Handles quoted fields (with escaped "" and embedded commas/newlines).
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const ch = text[i], next = text[i+1];
+    if(inQuotes){
+      if(ch === '"' && next === '"'){ field += '"'; i++; }
+      else if(ch === '"'){ inQuotes = false; }
+      else field += ch;
+    }else{
+      if(ch === '"') inQuotes = true;
+      else if(ch === ','){ row.push(field); field=''; }
+      else if(ch === '\r'){ /* skip */ }
+      else if(ch === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else field += ch;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.length>1 || (r.length===1 && r[0]!==''));
+}
+function findColumn(headers, ...keywords){
+  const lower = headers.map(h=>h.toLowerCase());
+  for(const kw of keywords){
+    const idx = lower.findIndex(h => h.includes(kw));
+    if(idx>-1) return idx;
+  }
+  return -1;
+}
+function csvYesNo(v){
+  const s = (v||'').trim().toLowerCase();
+  if(s==='yes' || s==='y' || s==='true') return 'yes';
+  if(s==='no' || s==='n' || s==='false') return 'no';
+  return '';
+}
+function csvToDate(v){
+  if(!v) return '';
+  const s = v.trim();
+  // Jotform date exports are commonly "MM-DD-YYYY", "DD-MM-YYYY" or "YYYY-MM-DD" depending on form locale.
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if(m){
+    // ambiguous MM-DD vs DD-MM — Jotform's default widget order is Month, Day, Year
+    const mm = m[1].padStart(2,'0'), dd = m[2].padStart(2,'0');
+    return `${m[3]}-${mm}-${dd}`;
+  }
+  return '';
+}
+/* ---------------- server sync (feedback-form.html + PHP backend) ---------------- */
+async function syncFeedbackFromServer(){
+  const s = STATE.feedbackSync;
+  if(!s.endpointUrl){ showToast('Enter the Supabase project URL first.', 'error'); return; }
+  if(!s.secretKey){ showToast('Enter the Supabase service_role key first.', 'error'); return; }
+  const btn = document.getElementById('btn-sync-feedback');
+  if(btn){ btn.disabled = true; btn.textContent = 'Syncing…'; }
+  try{
+    const base = s.endpointUrl.replace(/\/$/, '');
+    const url = new URL(base + '/rest/v1/feedback');
+    url.searchParams.set('select', '*');
+    url.searchParams.set('order', 'received_at.asc');
+    if(s.lastSyncedAt) url.searchParams.set('received_at', 'gt.' + s.lastSyncedAt);
+    const res = await fetch(url.toString(), {
+      headers: { 'apikey': s.secretKey, 'Authorization': 'Bearer ' + s.secretKey }
+    });
+    if(!res.ok) throw new Error('Supabase responded with ' + res.status);
+    const list = await res.json();
+    if(!Array.isArray(list)) throw new Error('Unexpected response format');
+
+    const asStr = v => (v===null || v===undefined) ? '' : String(v);
+    const existingServerIds = new Set(STATE.feedback.map(f=>f.serverId).filter(Boolean));
+    let imported = 0;
+    let latestReceivedAt = s.lastSyncedAt || '';
+    list.forEach(entry=>{
+      if(entry.id && existingServerIds.has(entry.id)) return; // already imported
+      const f = newFeedback();
+      f.serverId = entry.id || '';
+      f.yachtName = entry.yacht_name || '';
+      f.charterStartDate = entry.charter_start_date || '';
+      f.charterEndDate = entry.charter_end_date || '';
+      f.cruisingArea = entry.cruising_area || '';
+      f.expectations = asStr(entry.expectations);
+      f.testimonial = entry.testimonial || '';
+      f.improvements = entry.improvements || '';
+      f.wouldReturn = entry.would_return || '';
+      f.wouldRecommend = entry.would_recommend || '';
+      f.ratings.yacht = asStr(entry.rating_yacht);
+      f.ratings.crew = asStr(entry.rating_crew);
+      f.ratings.service = asStr(entry.rating_service);
+      f.ratings.communication = asStr(entry.rating_communication);
+      f.ratings.organisation = asStr(entry.rating_organisation);
+      f.ratings.itinerary = asStr(entry.rating_itinerary);
+      f.ratings.food = asStr(entry.rating_food);
+      f.ratings.watertoys = asStr(entry.rating_watertoys);
+      f.ratings.overall = asStr(entry.rating_overall);
+      if(f.yachtName){
+        const match = STATE.cases.find(cs => cs.yachtName && cs.yachtName.toLowerCase()===f.yachtName.toLowerCase()
+          && (!f.charterStartDate || cs.charterStartDate===f.charterStartDate));
+        if(match) f.linkedCaseId = match.id;
+      }
+      STATE.feedback.push(f);
+      imported++;
+      if(entry.received_at && entry.received_at > latestReceivedAt) latestReceivedAt = entry.received_at;
+    });
+    STATE.feedbackSync.lastSyncedAt = latestReceivedAt || new Date().toISOString();
+    persistAndRender();
+    showToast(imported > 0 ? (imported + ' new feedback ' + (imported===1?'entry':'entries') + ' synced') : 'No new feedback since last sync');
+  }catch(err){
+    showToast('Sync failed: ' + err.message, 'error');
+    if(btn){ btn.disabled = false; btn.textContent = 'Sync from server'; }
+  }
+}
+
+function handleImportCsv(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const rows = parseCsv(String(ev.target.result));
+      if(rows.length < 2){ showToast('This CSV has no data rows.', 'error'); e.target.value=''; return; }
+      const headers = rows[0];
+      const col = {
+        yacht: findColumn(headers, 'yacht name'),
+        start: findColumn(headers, 'starting date', 'embark'),
+        end: findColumn(headers, 'ending date', 'disembark'),
+        area: findColumn(headers, 'cruising area'),
+        expectations: findColumn(headers, 'expectations'),
+        rYacht: findColumn(headers, 'the yacht'),
+        rCrew: findColumn(headers, 'the crew'),
+        rService: findColumn(headers, 'service & attention', 'service and attention'),
+        rComm: findColumn(headers, 'communication before'),
+        rOrg: findColumn(headers, 'organisation & arrangements', 'organization'),
+        rItin: findColumn(headers, 'itinerary'),
+        rFood: findColumn(headers, 'food & dining', 'food and dining'),
+        rWater: findColumn(headers, 'water toys'),
+        rOverall: findColumn(headers, 'overall charter experience'),
+        testimonial: findColumn(headers, 'leave us a few words', 'share with future'),
+        improvements: findColumn(headers, 'done differently'),
+        wouldReturn: findColumn(headers, 'come back again'),
+        wouldRecommend: findColumn(headers, 'recommend this yacht'),
+        submitted: findColumn(headers, 'submission date', 'submit date', 'date created', 'created at')
+      };
+      let imported = 0;
+      for(let r=1;r<rows.length;r++){
+        const row = rows[r];
+        if(!row || row.every(v=>!v || !v.trim())) continue;
+        const get = idx => idx>-1 ? (row[idx]||'').trim() : '';
+        const f = newFeedback();
+        f.yachtName = get(col.yacht);
+        f.charterStartDate = csvToDate(get(col.start));
+        f.charterEndDate = csvToDate(get(col.end));
+        f.cruisingArea = get(col.area);
+        f.expectations = get(col.expectations).replace(/\D/g,'').slice(0,1);
+        f.ratings.yacht = get(col.rYacht).replace(/\D/g,'');
+        f.ratings.crew = get(col.rCrew).replace(/\D/g,'');
+        f.ratings.service = get(col.rService).replace(/\D/g,'');
+        f.ratings.communication = get(col.rComm).replace(/\D/g,'');
+        f.ratings.organisation = get(col.rOrg).replace(/\D/g,'');
+        f.ratings.itinerary = get(col.rItin).replace(/\D/g,'');
+        f.ratings.food = get(col.rFood).replace(/\D/g,'');
+        f.ratings.watertoys = get(col.rWater).replace(/\D/g,'');
+        f.ratings.overall = get(col.rOverall).replace(/\D/g,'');
+        f.testimonial = get(col.testimonial);
+        f.improvements = get(col.improvements);
+        f.wouldReturn = csvYesNo(get(col.wouldReturn));
+        f.wouldRecommend = csvYesNo(get(col.wouldRecommend));
+        f.submittedDate = csvToDate(get(col.submitted));
+        // try to auto-link to a charter file by matching yacht + overlapping dates
+        if(f.yachtName){
+          const match = STATE.cases.find(cs => cs.yachtName && cs.yachtName.toLowerCase()===f.yachtName.toLowerCase()
+            && (!f.charterStartDate || cs.charterStartDate===f.charterStartDate));
+          if(match) f.linkedCaseId = match.id;
+        }
+        STATE.feedback.push(f);
+        imported++;
+      }
+      persistAndRender();
+      showToast(imported + ' feedback ' + (imported===1?'entry':'entries') + ' imported — please review the fields, matching is not always exact.');
+    }catch(err){
+      showToast('Could not read this CSV: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function copyToClipboard(text){
+  function fallbackCopy(){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok) showToast('Link copied to clipboard');
+      else showToast('Could not copy automatically — link: ' + text, 'error');
+    }catch(e){
+      showToast('Could not copy automatically — link: ' + text, 'error');
+    }
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(
+      ()=>showToast('Link copied to clipboard'),
+      ()=>fallbackCopy()
+    );
+  }else{
+    fallbackCopy();
+  }
+}
+
+function showToast(msg, type){
+  const t = document.createElement('div');
+  t.className='toast';
+  if(type==='error') t.style.borderLeftColor = 'var(--danger)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 4200);
+}
+
+/* ---------------- init ---------------- */
+tryLoadLocal(); // instant local cache — snappy even before the network responds
+if(MULTIUSER_ENABLED){
+  supabaseClient.auth.onAuthStateChange((event, session)=>{
+    if(event === 'SIGNED_IN' && session && session.user){
+      currentUser = session.user;
+      loadFromServer().then(()=>{ render(); subscribeToServerChanges(); });
+    }else if(event === 'SIGNED_OUT'){
+      currentUser = null;
+      renderLoginGate();
+    }
+  });
+  supabaseClient.auth.getSession().then(({data})=>{
+    if(data && data.session && data.session.user){
+      currentUser = data.session.user;
+      loadFromServer().then(()=>{ render(); subscribeToServerChanges(); });
+    }else{
+      renderLoginGate();
+    }
+  });
+}else{
+  render(); // no Supabase configured — works exactly as a local, single-user file
+}
+</script>
+</body>
+</html>
