@@ -258,6 +258,9 @@ th.sortable-col:hover{color:var(--navy-900);}
 @media print{ th.sortable-col{cursor:default;} }
 td{padding:11px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
+.cases-table th,.cases-table td{padding-left:7px;padding-right:7px;white-space:nowrap;}
+.cases-table td:nth-child(3){white-space:normal;}
+@media(max-width:1400px){.cases-table{font-size:12.5px;}}
 tr.clickable:hover{background:var(--paper-dim);cursor:pointer;}
 .mono{font-family:'JetBrains Mono',monospace;font-size:12.5px;}
 .amount{font-family:'JetBrains Mono',monospace;font-weight:600;}
@@ -326,6 +329,29 @@ tr.drag-insert-after{box-shadow: inset 0 -3px 0 0 var(--brass);}
   .topbar,.no-print{display:none!important;}
   body{background:#fff;}
   .card{box-shadow:none;border:1px solid #ccc;}
+}
+
+.print-only-case{display:none;}
+@media print{
+  @page{size:A4 portrait;margin:10mm;}
+  .screen-only-case{display:none!important;}
+  .print-only-case{display:block!important;}
+  .ps-header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid #1c2530;padding-bottom:6px;margin-bottom:8px;}
+  .ps-brand{font-family:'Arial',sans-serif;font-weight:700;font-size:12px;}
+  .ps-title{font-family:'Arial',sans-serif;font-size:11px;font-weight:700;}
+  .ps-status{font-weight:600;font-size:9px;color:#555;margin-left:8px;text-transform:uppercase;}
+  .ps-kv{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:9px;}
+  .ps-kv th{width:110px;text-align:left;font-weight:700;color:#555;padding:2px 6px 2px 0;vertical-align:top;white-space:nowrap;}
+  .ps-kv td{padding:2px 10px 2px 0;vertical-align:top;}
+  .ps-section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:8px 0 3px;border-bottom:1px solid #999;padding-bottom:2px;}
+  .ps-schedule{width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:6px;}
+  .ps-schedule th{text-align:left;border-bottom:1px solid #999;padding:2px 6px;font-weight:700;}
+  .ps-schedule td{padding:2px 6px;border-bottom:1px solid #eee;}
+  .ps-recon{font-size:9px;margin-bottom:6px;}
+  .ps-checklist{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:8.5px;margin-bottom:6px;}
+  .ps-check{color:#999;}
+  .ps-check.done{color:#1c2530;font-weight:600;}
+  .ps-notes{font-size:8.5px;white-space:pre-wrap;border:1px solid #ddd;padding:6px;}
 }
 </style>
 </head>
@@ -1148,6 +1174,7 @@ function sortCases(cases, field, dir){
     switch(field){
       case 'caseNumber': av=(a.caseNumber||'').toLowerCase(); bv=(b.caseNumber||'').toLowerCase(); break;
       case 'clientName': av=(a.clientName||'').toLowerCase(); bv=(b.clientName||'').toLowerCase(); break;
+      case 'yachtName': av=(a.yachtName||'').toLowerCase(); bv=(b.yachtName||'').toLowerCase(); break;
       case 'role': av=a.role||''; bv=b.role||''; break;
       case 'charterEndDate': av=a.charterEndDate||''; bv=b.charterEndDate||''; break;
       case 'personInCharge': av=(a.personInCharge||'').toLowerCase(); bv=(b.personInCharge||'').toLowerCase(); break;
@@ -1213,9 +1240,10 @@ function renderCasesTable(cases, sortField, sortDir){
     return `<th data-sort-field="${field}" class="sortable-col" title="Sort by ${label}">${label}${arrow}</th>`;
   };
   return `
-  <table>
+  <div style="overflow-x:auto;">
+  <table class="cases-table">
     <thead><tr>
-      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Person in Charge')}${col('payments','Payments')}<th></th><th class="no-print"></th>
+      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Person in Charge')}${col('payments','Payments')}<th></th><th class="no-print"></th>
     </tr></thead>
     <tbody>
       ${cases.map(c=>{
@@ -1227,6 +1255,7 @@ function renderCasesTable(cases, sortField, sortDir){
             <td>${renderStatusChip(c, false)}</td>
             <td class="mono">${c.caseNumber ? esc(c.caseNumber) : '<span class="muted">—</span>'}</td>
             <td>${esc(c.clientName)||'<span class="muted">Unnamed</span>'}${c.role==='central' && (c.retailBrokerName||c.retailAgencyName) ? `<div style="font-size:11px;margin-top:2px;color:var(--brass);font-weight:600;">${esc(c.retailBrokerName)}${c.retailBrokerName&&c.retailAgencyName?' · ':''}${esc(c.retailAgencyName)}</div>` : ''}</td>
+            <td>${esc(c.yachtName)||'<span class="muted">—</span>'}</td>
             <td>${c.role==='retail'?'<span class="badge badge-retail">Retail Broker</span>':'<span class="badge badge-central">Central Agent</span>'}</td>
             <td class="mono">${fmtDate(c.charterStartDate)} ${c.charterStartTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.departureLocation)||'—'}</div></td>
             <td class="mono">${fmtDate(c.charterEndDate)} ${c.charterEndTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.arrivalLocation)||'—'}</div></td>
@@ -1240,13 +1269,14 @@ function renderCasesTable(cases, sortField, sortDir){
           return `<tr>
             <td><span class="status-chip"><span class="status-dot" style="background:#9aa1a9;"></span>—</span></td>
             <td class="mono">${c.caseNumber ? esc(c.caseNumber) : '<span class="muted">—</span>'}</td>
-            <td colspan="5"><span class="badge badge-danger">Couldn't be opened — outdated or corrupted record</span></td>
+            <td colspan="6"><span class="badge badge-danger">Couldn't be opened — outdated or corrupted record</span></td>
             <td class="no-print" style="text-align:right;" colspan="2">${renderListDeleteButton(c.id)}</td>
           </tr>`;
         }
       }).join('')}
     </tbody>
-  </table>`;
+  </table>
+  </div>`;
 }
 
 /* ---- booking calendar ---- */
@@ -1717,6 +1747,7 @@ function renderCaseDetail(id){
     </div>
   </div>
 
+  <div class="screen-only-case">
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
   <div class="role-bar" style="background:var(--navy-800);flex:1;min-width:280px;margin-bottom:0;">
     <div class="role-bar-label">File type</div>
@@ -1925,6 +1956,7 @@ function renderCaseDetail(id){
           <input type="checkbox" data-att="prefListReceived" ${c.attachments.prefListReceived?'checked':''} id="pref2">
           <label for="pref2">Preference list received</label>
         </div>` : ''}
+        ${renderFeedbackChecklistRow(c)}
         <div class="divider-label">Addendums</div>
         ${c.attachments.addendums.map((a,i)=>`
           <div class="checklist-item">
@@ -1994,7 +2026,105 @@ function renderCaseDetail(id){
       </div>` : ''}
     </div>
   </div>
+  </div>
+
+  ${renderCasePrintSheet(c, {rate,vatAmt,apaAmt,retailComm,caComm}, unifiedRows, ledger)}
   `;
+}
+
+function renderCasePrintSheet(c, money, unifiedRows, ledger){
+  const phase = getEffectivePhase(c);
+  const statusLabel = (STATUS_META[phase] || STATUS_META.negotiation).label;
+  const {rate,vatAmt,apaAmt,retailComm,caComm} = money;
+  const linkedFeedback = STATE.feedback.find(f=>f.linkedCaseId===c.id);
+
+  const scheduleRows = unifiedRows.map(row=>{
+    if(row.type==='fixed'){
+      const p = row.data, st = paymentStatus(c,p.key);
+      const amount = p.manualAmount ? c[p.manualField]
+        : (p.amountOverridden ? c.paymentOverrides[p.key].amount : p.expectedAmount);
+      return {label:p.label, due:p.due, amount, paid:st.status==='paid', paidDate:st.paidDate};
+    }
+    const cp = row.data;
+    return {label:cp.description||'Extra payment', due:cp.due, amount:cp.amount, paid:cp.status==='paid', paidDate:cp.paidDate};
+  });
+
+  const checklistFlags = [
+    ['Contract', !!c.attachments.contract],
+    ['Client Passport', !!c.attachments.passport],
+    ['Our Invoice', !!c.attachments.ourInvoice],
+    [c.role==='retail'?'Central Agent Invoice':'Retail Broker Invoice', !!c.attachments.otherBrokerInvoice],
+    ['Feedback', !!linkedFeedback],
+  ];
+  if(c.type!=='sale'){
+    if(c.role==='retail') checklistFlags.push(['Pref. list sent (client)', !!c.attachments.prefListSent], ['Pref. list sent (crew)', !!c.attachments.prefListSentToCrew]);
+    checklistFlags.push(['Pref. list received', !!c.attachments.prefListReceived]);
+  }
+
+  return `
+  <div class="print-only-case">
+    <div class="ps-header">
+      <div class="ps-brand">West Coast International</div>
+      <div class="ps-title">${c.type==='sale'?'Sale File':'Charter File'} ${esc(c.caseNumber||'')} <span class="ps-status">${esc(statusLabel)}</span></div>
+    </div>
+
+    <table class="ps-kv">
+      <tr><th>Client</th><td>${esc(c.clientName)||'—'}</td><th>Yacht</th><td>${esc(c.yachtName)||'—'}</td></tr>
+      <tr><th>Role</th><td>${c.role==='retail'?'Retail Broker':'Central Agent'}</td><th>Person in Charge</th><td>${esc(c.personInCharge)||'—'}</td></tr>
+      ${c.type==='sale' ? `
+      <tr><th>Contract Sign Date</th><td colspan="3">${c.contractSignDate?fmtDate(c.contractSignDate):'—'}</td></tr>
+      ` : `
+      <tr><th>Charter Dates</th><td colspan="3">${c.charterStartDate?fmtDate(c.charterStartDate):'—'} ${esc(c.charterStartTime)} &nbsp;→&nbsp; ${c.charterEndDate?fmtDate(c.charterEndDate):'—'} ${esc(c.charterEndTime)}</td></tr>
+      <tr><th>Route</th><td>${esc(c.departureLocation)||'—'} → ${esc(c.arrivalLocation)||'—'}</td><th>Contract Sign</th><td>${c.contractSignDate?fmtDate(c.contractSignDate):'—'}</td></tr>
+      `}
+    </table>
+
+    <table class="ps-kv">
+      ${c.type==='sale' ? `
+      <tr><th>Sale Price</th><td>${fmtMoney(rate)}</td><th>VAT</th><td>${c.saleVatPaid==='paid'?'Paid':c.saleVatPaid==='unpaid'?'Not paid':'—'}</td></tr>
+      <tr><th>Deposit / Earnest</th><td colspan="3">${esc(c.saleDepositPct)||'—'}%</td></tr>
+      ` : `
+      <tr><th>Charter Rate</th><td>${fmtMoney(rate)}</td><th>VAT (${esc(c.vatPct)||0}%)</th><td>${fmtMoney(vatAmt)}</td></tr>
+      <tr><th>APA (${esc(c.apaPct)||0}%)</th><td>${fmtMoney(apaAmt)}</td><th>Delivery Fee</th><td>${fmtMoney(c.deliveryFee)}</td></tr>
+      `}
+      <tr><th>Retail Comm.</th><td>${fmtMoney(retailComm)}${c.retailBrokerName?' — '+esc(c.retailBrokerName):''}</td><th>Central Comm.</th><td>${fmtMoney(caComm)}${c.caBrokerName?' — '+esc(c.caBrokerName):''}</td></tr>
+    </table>
+
+    <div class="ps-section-title">Payment Schedule</div>
+    <table class="ps-schedule">
+      <thead><tr><th>Payment</th><th>Due</th><th style="text-align:right;">Amount</th><th>Status</th><th>Paid on</th></tr></thead>
+      <tbody>
+        ${scheduleRows.length ? scheduleRows.map(r=>`
+        <tr>
+          <td>${esc(r.label)}</td>
+          <td>${r.due?fmtDate(r.due):'—'}</td>
+          <td style="text-align:right;">${r.amount!==null && r.amount!==undefined && r.amount!=='' ? fmtMoney(r.amount) : '—'}</td>
+          <td>${r.paid?'Paid':'Pending'}</td>
+          <td>${r.paidDate?fmtDate(r.paidDate):'—'}</td>
+        </tr>`).join('') : `<tr><td colspan="5">—</td></tr>`}
+      </tbody>
+    </table>
+
+    <div class="ps-recon">
+      <strong>Reconciliation:</strong> Incoming ${fmtMoney(ledger.totalIn)} &nbsp;·&nbsp; Outgoing ${fmtMoney(ledger.totalOut)} &nbsp;·&nbsp; Balance ${Math.abs(ledger.diff)<0.005 ? 'Matches' : fmtMoney(ledger.diff)}
+    </div>
+
+    <div class="ps-section-title">Checklist</div>
+    <div class="ps-checklist">
+      ${checklistFlags.map(([label,done])=>`<span class="ps-check ${done?'done':''}">${done?'✓':'○'} ${esc(label)}</span>`).join('')}
+    </div>
+
+    ${c.notes ? `<div class="ps-section-title">Notes</div><div class="ps-notes">${esc(c.notes)}</div>` : ''}
+  </div>`;
+}
+
+function renderFeedbackChecklistRow(c){
+  const linked = STATE.feedback.find(f=>f.linkedCaseId===c.id);
+  return `<div class="checklist-item">
+    <input type="checkbox" disabled ${linked?'checked':''} id="att-feedback">
+    <label for="att-feedback">Feedback received${linked?'':' (flags automatically once linked)'}</label>
+    ${linked ? `<button class="btn btn-ghost btn-sm no-print" data-open-feedback="${linked.id}">Open →</button>` : ''}
+  </div>`;
 }
 
 function renderAttachmentRow(c, key, label){
