@@ -1061,14 +1061,7 @@ function renderTopbar(){
       ${tabs.map(([k,l])=>`<button data-tab="${k}" class="${STATE.view.tab===k?'active':''}">${l}</button>`).join('')}
     </nav>
     <div class="actions">
-      ${onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-import-csv">Import CSV</button>` : ''}
-      <input type="file" id="file-import-csv" accept=".csv,text/csv" class="file-input-wrap">
-      <button class="btn btn-ghost btn-sm" id="btn-export">Export data</button>
-      <button class="btn btn-ghost btn-sm" id="btn-import">Import data</button>
-      <input type="file" id="file-import" accept="application/json" class="file-input-wrap">
-      ${onFeedback
-        ? `<button class="btn btn-brass btn-sm" id="btn-new-feedback">+ New Feedback Entry</button>`
-        : `<button class="btn btn-ghost btn-sm" id="btn-new-sale">+ New Sale File</button><button class="btn btn-brass btn-sm" id="btn-new-case">+ New Charter File</button>`}
+      ${!onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-new-sale">+ New Sale File</button><button class="btn btn-brass btn-sm" id="btn-new-case">+ New Charter File</button>` : ''}
       ${MULTIUSER_ENABLED && currentUser ? `<button class="btn btn-ghost btn-sm" id="btn-sign-out" title="${esc(currentUser.email||'')}">Sign Out</button>` : ''}
     </div>
 
@@ -1489,8 +1482,9 @@ function renderStatistics(){
 function renderFeedbackSyncPanel(){
   return `
     <div class="card no-print">
-      <div class="card-body">
+      <div class="card-body" style="display:flex;gap:10px;">
         <button class="btn btn-ghost btn-sm" id="btn-copy-form-link">Feedback link</button>
+        <button class="btn btn-brass btn-sm" id="btn-new-feedback">+ New Feedback Entry</button>
       </div>
     </div>
   `;
