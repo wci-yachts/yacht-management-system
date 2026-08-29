@@ -362,6 +362,7 @@ const MULTIUSER_ENABLED = SUPABASE_URL.indexOf('YOUR-PROJECT-REF') === -1 && !!w
 const supabaseClient = MULTIUSER_ENABLED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let currentUser = null;
 let serverPushTimer = null;
+let feedbackSettingsOpen = false; // per-session UI toggle, not persisted
 
 const STORAGE_KEY = 'yocharter_manager_data_v1';
 
@@ -1480,12 +1481,27 @@ function renderStatistics(){
 /* ---- case detail ---- */
 /* ---- client feedback ---- */
 function renderFeedbackSyncPanel(){
+  const s = STATE.feedbackSync;
   return `
     <div class="card no-print">
-      <div class="card-body" style="display:flex;gap:10px;">
+      <div class="card-body" style="display:flex;gap:10px;align-items:center;">
         <button class="btn btn-ghost btn-sm" id="btn-copy-form-link">Feedback link</button>
         <button class="btn btn-brass btn-sm" id="btn-new-feedback">+ New Feedback Entry</button>
+        <button class="btn btn-ghost btn-sm" id="btn-toggle-feedback-settings" style="margin-left:auto;">${feedbackSettingsOpen ? 'Hide settings' : 'Feedback settings'}</button>
       </div>
+      ${feedbackSettingsOpen ? `
+      <div class="card-body" style="border-top:1px solid var(--line);">
+        <div class="field"><label class="field-label">Feedback form link (shown by the "Feedback link" button above)</label><input type="text" data-fbsync="formLink" value="${esc(s.formLink)}" placeholder="e.g. https://feedback-form-bice-alpha.vercel.app"></div>
+        <div class="row c3" style="margin-top:12px;">
+          <div class="field"><label class="field-label">Supabase Project URL</label><input type="text" data-fbsync="endpointUrl" value="${esc(s.endpointUrl)}" placeholder="https://xxxxxxxx.supabase.co"></div>
+          <div class="field"><label class="field-label">Supabase service_role key</label><input type="text" data-fbsync="secretKey" value="${esc(s.secretKey)}" placeholder="from Project Settings → API"></div>
+          <div class="field" style="display:flex;align-items:flex-end;gap:10px;">
+            <button class="btn btn-brass btn-sm" id="btn-sync-feedback" style="height:38px;">Sync from server</button>
+          </div>
+        </div>
+        <div class="field-hint">${s.lastSyncedAt ? 'Last synced ' + fmtDate(s.lastSyncedAt.slice(0,10)) + ' at ' + new Date(s.lastSyncedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Never synced yet.'} Pulls in new submissions from your Supabase "feedback" table. This service_role key stays on this device only — it's never saved to the shared workspace. ⚠ Use the <strong>service_role</strong> key here (never the "anon" key) — and never paste the service_role key into feedback-form.html, only here.</div>
+      </div>
+      ` : ''}
     </div>
   `;
 }
@@ -2056,6 +2072,11 @@ function wireGlobalEvents(){
     STATE.feedback.push(f);
     STATE.view = {tab:'feedback', feedbackId:f.id};
     persistAndRender();
+  });
+  const toggleFeedbackSettingsBtn = document.getElementById('btn-toggle-feedback-settings');
+  if(toggleFeedbackSettingsBtn) toggleFeedbackSettingsBtn.addEventListener('click', ()=>{
+    feedbackSettingsOpen = !feedbackSettingsOpen;
+    render();
   });
   const copyLinkBtn = document.getElementById('btn-copy-form-link');
   if(copyLinkBtn) copyLinkBtn.addEventListener('click', ()=>copyToClipboard(STATE.feedbackSync.formLink || JOTFORM_URL));
