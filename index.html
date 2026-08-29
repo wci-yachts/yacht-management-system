@@ -410,10 +410,13 @@ function tryLoadLocal(){
     }
   }catch(e){ /* storage unavailable — session-only mode */ }
 }
-function tryPersistLocal(){
+function persistLocalSnapshot(){
   try{
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync}));
   }catch(e){ /* ignore — export/import remains the reliable path */ }
+}
+function tryPersistLocal(){
+  persistLocalSnapshot();
   schedulePushToServer();
 }
 
@@ -456,6 +459,7 @@ async function loadFromServer(){
       const keepLocalSecretKey = STATE.feedbackSync.secretKey; // never overwritten by a sync — it's kept per-device only
       STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync, {secretKey: keepLocalSecretKey});
     }
+    persistLocalSnapshot(); // keep the offline copy on this device fresh with whatever just came from the server
     return true;
   }catch(e){
     console.error('Load from server failed', e);
