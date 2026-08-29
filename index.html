@@ -399,7 +399,12 @@ function schedulePushToServer(){
 async function pushToServer(){
   if(!MULTIUSER_ENABLED || !currentUser) return;
   try{
-    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync};
+    /* The Supabase service_role key (feedbackSync.secretKey) never leaves
+       this device: it grants full read/write access bypassing all security
+       rules, so it must not end up stored in the shared workspace row where
+       any logged-in teammate could read it back out. */
+    const feedbackSyncToShare = Object.assign({}, STATE.feedbackSync, {secretKey:''});
+    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare};
     const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
     if(error) throw error;
   }catch(e){
@@ -421,7 +426,8 @@ async function loadFromServer(){
       STATE.feedback = normalizeFeedbackList(parsed.feedback);
     }
     if(parsed && parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
-      STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
+      const keepLocalSecretKey = STATE.feedbackSync.secretKey; // never overwritten by a sync — it's kept per-device only
+      STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync, {secretKey: keepLocalSecretKey});
     }
     return true;
   }catch(e){
