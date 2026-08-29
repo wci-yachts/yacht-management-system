@@ -1109,7 +1109,7 @@ function renderDashboard(){
   STATE.cases.forEach(c=>{
     buildPaymentSchedule(c).forEach(p=>{
       const st = paymentStatus(c,p.key);
-      allPayments.push({...p, caseNumber:c.caseNumber, clientName:c.clientName, caseId:c.id, status:st.status, paidDate:st.paidDate,
+      allPayments.push({...p, caseNumber:c.caseNumber, clientName:c.clientName, yachtName:c.yachtName, caseId:c.id, status:st.status, paidDate:st.paidDate,
         role:c.role, retailBrokerName:c.retailBrokerName, retailAgencyName:c.retailAgencyName});
     });
   });
@@ -1143,7 +1143,7 @@ function renderDashboard(){
 function renderPaymentReminderTable(rows){
   return `
   <table>
-    <thead><tr><th>Due</th><th>Charter File</th><th>Client</th><th>Payment</th><th>Direction</th><th style="text-align:right;">Amount</th><th>Status</th></tr></thead>
+    <thead><tr><th>Due</th><th>Charter File</th><th>Client</th><th>Yacht</th><th>Payment</th><th>Direction</th><th style="text-align:right;">Amount</th><th>Status</th></tr></thead>
     <tbody>
       ${rows.map(p=>{
         const urg = paymentUrgency(p.due, p.status);
@@ -1154,6 +1154,7 @@ function renderPaymentReminderTable(rows){
           <td class="mono">${fmtDate(p.due)}</td>
           <td class="mono">${p.caseNumber ? esc(p.caseNumber) : '<span class="muted">—</span>'}</td>
           <td>${esc(p.clientName)||'<span class="muted">—</span>'}${p.role==='central' && (p.retailBrokerName||p.retailAgencyName) ? `<div style="font-size:11px;margin-top:2px;color:var(--brass);font-weight:600;">${esc(p.retailBrokerName)}${p.retailBrokerName&&p.retailAgencyName?' · ':''}${esc(p.retailAgencyName)}</div>` : ''}</td>
+          <td>${esc(p.yachtName)||'<span class="muted">—</span>'}</td>
           <td>${esc(p.label)}</td>
           <td class="muted">${esc(p.party)}</td>
           <td style="text-align:right;" class="amount">${p.amount===null?'—':fmtMoney(p.amount)}</td>
