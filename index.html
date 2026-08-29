@@ -1255,7 +1255,7 @@ function renderCasesTable(cases, sortField, sortDir){
             <td class="mono">${c.caseNumber ? esc(c.caseNumber) : '<span class="muted">—</span>'}</td>
             <td>${esc(c.clientName)||'<span class="muted">Unnamed</span>'}${c.role==='central' && (c.retailBrokerName||c.retailAgencyName) ? `<div style="font-size:11px;margin-top:2px;color:var(--brass);font-weight:600;">${esc(c.retailBrokerName)}${c.retailBrokerName&&c.retailAgencyName?' · ':''}${esc(c.retailAgencyName)}</div>` : ''}</td>
             <td>${esc(c.yachtName)||'<span class="muted">—</span>'}</td>
-            <td>${c.role==='retail'?'<span class="badge badge-retail">Retail Broker</span>':'<span class="badge badge-central">Central Agent</span>'}</td>
+            <td>${c.role==='retail'?'<span class="badge badge-retail">Retail</span>':'<span class="badge badge-central">Central</span>'}</td>
             <td class="mono">${fmtDate(c.charterStartDate)} ${c.charterStartTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.departureLocation)||'—'}</div></td>
             <td class="mono">${fmtDate(c.charterEndDate)} ${c.charterEndTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.arrivalLocation)||'—'}</div></td>
             <td>${esc(c.personInCharge)||'<span class="muted">—</span>'}</td>
