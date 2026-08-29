@@ -1061,7 +1061,6 @@ function renderTopbar(){
       ${tabs.map(([k,l])=>`<button data-tab="${k}" class="${STATE.view.tab===k?'active':''}">${l}</button>`).join('')}
     </nav>
     <div class="actions">
-      ${onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-copy-form-link">Feedback link</button>` : ''}
       ${onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-import-csv">Import CSV</button>` : ''}
       <input type="file" id="file-import-csv" accept=".csv,text/csv" class="file-input-wrap">
       <button class="btn btn-ghost btn-sm" id="btn-export">Export data</button>
@@ -1488,25 +1487,10 @@ function renderStatistics(){
 /* ---- case detail ---- */
 /* ---- client feedback ---- */
 function renderFeedbackSyncPanel(){
-  const s = STATE.feedbackSync;
   return `
     <div class="card no-print">
-      <div class="card-head"><h2><span class="eyebrow">Link</span>&nbsp; Feedback Form</h2></div>
       <div class="card-body">
-        <div class="field"><label class="field-label">Feedback form link (shown by the "Feedback link" button above)</label><input type="text" data-fbsync="formLink" value="${esc(s.formLink)}" placeholder="e.g. https://bit.ly/wci-feedback"></div>
-      </div>
-    </div>
-    <div class="card no-print">
-      <div class="card-head"><h2><span class="eyebrow">Server</span>&nbsp; Sync Feedback (Supabase)</h2></div>
-      <div class="card-body">
-        <div class="row c3">
-          <div class="field"><label class="field-label">Supabase Project URL</label><input type="text" data-fbsync="endpointUrl" value="${esc(s.endpointUrl)}" placeholder="https://xxxxxxxx.supabase.co"></div>
-          <div class="field"><label class="field-label">Supabase service_role key</label><input type="text" data-fbsync="secretKey" value="${esc(s.secretKey)}" placeholder="from Project Settings → API"></div>
-          <div class="field" style="display:flex;align-items:flex-end;gap:10px;">
-            <button class="btn btn-brass btn-sm" id="btn-sync-feedback" style="height:38px;">Sync from server</button>
-          </div>
-        </div>
-        <div class="field-hint">${s.lastSyncedAt ? 'Last synced ' + fmtDate(s.lastSyncedAt.slice(0,10)) + ' at ' + new Date(s.lastSyncedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Never synced yet.'} Pulls in new submissions from your Supabase "feedback" table. ⚠ Use the <strong>service_role</strong> key here (never the "anon" key) — and never paste the service_role key into feedback-form.html, only here.</div>
+        <button class="btn btn-ghost btn-sm" id="btn-copy-form-link">Feedback link</button>
       </div>
     </div>
   `;
