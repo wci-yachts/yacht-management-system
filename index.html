@@ -111,7 +111,7 @@ main{flex:1;padding:26px 28px 60px;max-width:1280px;margin:0 auto;width:100%;}
 .topbar .btn-ghost{border-color:rgba(255,253,248,.3);color:var(--white);}
 .topbar .btn-ghost:hover{background:rgba(255,253,248,.08);}
 
-input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{
+input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],select,textarea{
   font-family:'Inter';font-size:13.5px;color:var(--ink);
   background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
   padding:8px 10px;width:100%;
@@ -465,7 +465,7 @@ function renderLoginGate(errorMsg){
         </div>
         <div class="field"><label class="field-label">Email</label><input type="text" id="login-email" autocomplete="username"></div>
         <div class="field" style="margin-top:12px;"><label class="field-label">Password</label><input type="password" id="login-password" autocomplete="current-password"></div>
-        <button class="btn btn-brass btn-sm" id="login-submit" style="width:100%;margin-top:18px;padding:11px 0;font-size:13px;">Sign In</button>
+        <button class="btn btn-brass btn-sm" id="login-submit" style="width:100%;margin-top:18px;padding:11px 0;font-size:13px;justify-content:center;">Sign In</button>
         <div id="login-error" style="color:var(--danger);font-size:12px;margin-top:12px;text-align:center;${errorMsg?'':'display:none;'}">${errorMsg?esc(errorMsg):''}</div>
       </div>
     </div>
