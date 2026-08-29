@@ -1080,7 +1080,6 @@ function renderTopbar(){
     ['feedback','Feedback'],
     ['statistics','Statistics'],
   ];
-  const onFeedback = STATE.view.tab==='feedback';
   return `
   <div class="topbar">
     <div class="brand"><span class="mark">W</span><span>West Coast International<small>Charter & Sale Management System</small></span></div>
@@ -1088,7 +1087,6 @@ function renderTopbar(){
       ${tabs.map(([k,l])=>`<button data-tab="${k}" class="${STATE.view.tab===k?'active':''}">${l}</button>`).join('')}
     </nav>
     <div class="actions">
-      ${!onFeedback ? `<button class="btn btn-ghost btn-sm" id="btn-new-sale">+ New Sale File</button><button class="btn btn-brass btn-sm" id="btn-new-case">+ New Charter File</button>` : ''}
       ${MULTIUSER_ENABLED && currentUser ? `<button class="btn btn-ghost btn-sm" id="btn-sign-out" title="${esc(currentUser.email||'')}">Sign Out</button>` : ''}
     </div>
 
@@ -1216,6 +1214,7 @@ function renderCasesList(){
         <option value="central" ${roleFilter==='central'?'selected':''}>Central Agent</option>
       </select>
       <span class="muted" style="font-size:12px;">${cases.length} file${cases.length===1?'':'s'}</span>
+      <button class="btn btn-brass btn-sm" id="btn-new-file" style="margin-left:auto;">+ New File</button>
     </div>
     <div class="card">
       <div class="card-body" style="padding:0;">
@@ -1234,16 +1233,16 @@ function renderListDeleteButton(id){
 }
 
 function renderCasesTable(cases, sortField, sortDir){
-  const col = (field, label)=>{
+  const col = (field, label, style)=>{
     const active = sortField===field;
     const arrow = active ? (sortDir==='asc' ? ' ▲' : ' ▼') : '';
-    return `<th data-sort-field="${field}" class="sortable-col" title="Sort by ${label}">${label}${arrow}</th>`;
+    return `<th data-sort-field="${field}" class="sortable-col" title="Sort by ${label}"${style?` style="${style}"`:''}>${label}${arrow}</th>`;
   };
   return `
   <div style="overflow-x:auto;">
   <table class="cases-table">
     <thead><tr>
-      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Person in Charge')}${col('payments','Payments')}<th></th><th class="no-print"></th>
+      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Broker','width:1%;')}${col('payments','Payments')}<th></th><th class="no-print"></th>
     </tr></thead>
     <tbody>
       ${cases.map(c=>{
@@ -2179,16 +2178,9 @@ function wireGlobalEvents(){
     render();
   }));
 
-  const newBtn = document.getElementById('btn-new-case');
-  if(newBtn) newBtn.addEventListener('click', ()=>{
+  const newFileBtn = document.getElementById('btn-new-file');
+  if(newFileBtn) newFileBtn.addEventListener('click', ()=>{
     const c = newCase('charter');
-    STATE.cases.push(c);
-    STATE.view = {tab:'case', caseId:c.id};
-    persistAndRender();
-  });
-  const newSaleBtn = document.getElementById('btn-new-sale');
-  if(newSaleBtn) newSaleBtn.addEventListener('click', ()=>{
-    const c = newCase('sale');
     STATE.cases.push(c);
     STATE.view = {tab:'case', caseId:c.id};
     persistAndRender();
