@@ -75,6 +75,13 @@ automaticamente alla pratica giusta quando barca e data coincidono.
   l'utente aveva già cliccato. Aggiorna solo `el.value` e lo stato interno.
 - I pagamenti (preimpostati + extra) condividono un unico ordine
   (`getUnifiedScheduleRows`), così si possono riordinare liberamente tra loro.
+- I campi `type="date"`/`type="time"` si aggiornano su `blur`, **non** su
+  `change` (vedi `liveEventFor()`) — i browser scatenano `change` ad ogni
+  tasto se il campo ha già un valore, non solo alla fine, e ridisegnare a
+  ogni colpo rimandava il focus alla prima cifra del campo data,
+  interrompendo la digitazione. Stesso principio dei campi importo: non far
+  scattare `render()`/`softRerenderCase()` più spesso del necessario mentre
+  l'utente sta ancora scrivendo.
 
 ## File in questo repository
 - `index.html` — l'applicazione
