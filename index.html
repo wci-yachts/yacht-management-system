@@ -336,19 +336,19 @@ tr.drag-insert-after{box-shadow: inset 0 -3px 0 0 var(--brass);}
   @page{size:A4 portrait;margin:10mm;}
   .screen-only-case{display:none!important;}
   .print-only-case{display:block!important;}
-  .ps-header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid #1c2530;padding-bottom:6px;margin-bottom:8px;}
+  .ps-header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid #1c2530;padding-bottom:6px;margin-bottom:14px;}
   .ps-brand{font-family:'Arial',sans-serif;font-weight:700;font-size:12px;}
   .ps-title{font-family:'Arial',sans-serif;font-size:11px;font-weight:700;}
   .ps-status{font-weight:600;font-size:9px;color:#555;margin-left:8px;text-transform:uppercase;}
-  .ps-kv{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:9px;}
+  .ps-kv{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:9px;}
   .ps-kv th{width:110px;text-align:left;font-weight:700;color:#555;padding:2px 6px 2px 0;vertical-align:top;white-space:nowrap;}
   .ps-kv td{padding:2px 10px 2px 0;vertical-align:top;}
-  .ps-section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:8px 0 3px;border-bottom:1px solid #999;padding-bottom:2px;}
-  .ps-schedule{width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:6px;}
+  .ps-section-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 6px;border-bottom:1px solid #999;padding-bottom:2px;}
+  .ps-schedule{width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:14px;}
   .ps-schedule th{text-align:left;border-bottom:1px solid #999;padding:2px 6px;font-weight:700;}
   .ps-schedule td{padding:2px 6px;border-bottom:1px solid #eee;}
-  .ps-recon{font-size:9px;margin-bottom:6px;}
-  .ps-checklist{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:8.5px;margin-bottom:6px;}
+  .ps-recon{font-size:9px;margin-bottom:14px;}
+  .ps-checklist{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:8.5px;margin-bottom:14px;}
   .ps-check{color:#999;}
   .ps-check.done{color:#1c2530;font-weight:600;}
   .ps-notes{font-size:8.5px;white-space:pre-wrap;border:1px solid #ddd;padding:6px;}
@@ -778,6 +778,12 @@ function buildScheduleItemsCharter(c){
   const isRetail = c.role==='retail';
   const depositDue = addDays(c.contractSignDate, 5);
   const balanceDue = subMonths(c.charterStartDate, 1);
+  /* If the contract is signed less than a month before departure, there's no
+     time left for a separate deposit installment: the client pays the full
+     amount in one go ("Client Balance"), due the day the contract is signed,
+     and the Client Deposit / CA Deposit lines don't apply at all. */
+  const lateSign = !!(c.contractSignDate && c.charterStartDate && c.contractSignDate > balanceDue);
+  const effectiveBalanceDue = lateSign ? c.contractSignDate : balanceDue;
   const list = [];
 
   /* --- cascading shortfall logic ---
@@ -796,19 +802,23 @@ function buildScheduleItemsCharter(c){
   };
   const depositExpected = isRetail ? rate*0.5 : (rate*0.5 - retailComm);
   const depositActual = overrideAmount('client_deposit');
-  const depositShortfall = depositActual!==null ? (depositExpected - depositActual) : 0;
+  const depositShortfall = (!lateSign && depositActual!==null) ? (depositExpected - depositActual) : 0;
 
-  const balanceBaseExpected = rate*0.5 + vatAmt + apaAmt + delivery;
+  const balanceBaseExpected = lateSign ? (depositExpected + rate*0.5 + vatAmt + apaAmt + delivery) : (rate*0.5 + vatAmt + apaAmt + delivery);
   const balanceExpected = balanceBaseExpected + depositShortfall;
   const balanceActual = overrideAmount('client_balance');
   const balanceShortfall = balanceActual!==null ? (balanceExpected - balanceActual) : 0;
 
+  const caDepositExpected = rate*0.5 - retailComm;
+
   const depositCascadeNote = depositShortfall!==0
     ? `Client Deposit is ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'short':'over'} — added to Client Balance below`
     : null;
-  const balanceCascadeNote = depositShortfall!==0
-    ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
-    : null;
+  const balanceCascadeNote = lateSign
+    ? 'Full amount — contract signed less than a month before departure, so there is no separate deposit'
+    : (depositShortfall!==0
+      ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
+      : null);
   const apaCascadeNote = balanceShortfall!==0
     ? `Reduced by ${fmtMoney(Math.abs(balanceShortfall))} — the Client Balance is still ${balanceShortfall>0?'short':'over'} by that amount`
     : null;
@@ -819,42 +829,44 @@ function buildScheduleItemsCharter(c){
     due: depositDue,
     note: isRetail ? '50% of Charter Rate' : '50% of Charter Rate less Retail Broker commission',
     cascadeNote: depositCascadeNote,
-    always:true, direction:'in', ledger:true
+    visible: !lateSign, direction:'in', ledger:true
   });
   list.push({
     key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
     amount: isRetail ? retailComm : caComm,
-    due: depositDue,
-    note:'Due when client deposit is received',
+    due: lateSign ? effectiveBalanceDue : depositDue,
+    note: lateSign ? 'Due when the client balance is received' : 'Due when client deposit is received',
     always:true, direction:'out', ledger:true
   });
   list.push({
     key:'ca_deposit', label:'Payment to Central Agent — Deposit', party:'To Central Agent',
-    amount: rate*0.5 - retailComm,
+    amount: caDepositExpected,
     due: depositDue,
     note:'50% Charter Rate less our Retail Broker commission',
-    visible: isRetail, direction:'out', ledger:true
+    visible: isRetail && !lateSign, direction:'out', ledger:true
   });
+  const caBalanceExpected = lateSign ? (balanceExpected - retailComm) : balanceExpected;
+
   list.push({
     key:'client_balance', label:'Client Balance', party:'From Client',
     amount: balanceExpected,
-    due: balanceDue,
-    note:'50% Charter Rate + VAT + APA + Delivery',
+    due: effectiveBalanceDue,
+    note: lateSign ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing' : '50% Charter Rate + VAT + APA + Delivery',
     cascadeNote: balanceCascadeNote,
     always:true, direction:'in', ledger:true
   });
   list.push({
     key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
-    amount: balanceExpected,
-    due: balanceDue,
-    note:'50% Charter Rate + VAT + APA + Delivery',
+    amount: caBalanceExpected,
+    due: effectiveBalanceDue,
+    note: lateSign ? 'Full Charter Rate + VAT + APA + Delivery, less our Retail Broker commission — due on contract signing' : '50% Charter Rate + VAT + APA + Delivery',
     cascadeNote: isRetail ? balanceCascadeNote : null,
     visible: isRetail, direction:'out', ledger:true
   });
   list.push({
     key:'owner_apa_delivery', label:'APA + Delivery', party:'To Owner',
     amount: (apaAmt + delivery) - (!isRetail ? balanceShortfall : 0),
-    due: balanceDue,
+    due: effectiveBalanceDue,
     note:'Due on receipt of client balance',
     cascadeNote: !isRetail ? apaCascadeNote : null,
     visible: !isRetail, direction:'out', ledger:true
@@ -1051,6 +1063,30 @@ function buildLedger(c){
   const totalIn = rows.filter(r=>r.direction==='in').reduce((s,r)=>s+(r.amount||0),0);
   const totalOut = rows.filter(r=>r.direction==='out').reduce((s,r)=>s+(r.amount||0),0);
   return {rows, totalIn, totalOut, diff: totalIn-totalOut};
+}
+
+/* All actually-paid incoming/outgoing amounts across every charter/sale file,
+   dated by when they were paid (not when they were due), for the Statistics
+   "Cash Flow" export. dateFrom/dateTo are inclusive 'YYYY-MM-DD' strings;
+   either can be '' to leave that side of the range open. */
+function buildCashFlowRows(dateFrom, dateTo){
+  const rows = [];
+  STATE.cases.forEach(c=>{
+    try{
+      buildPaymentSchedule(c).filter(p=>p.ledger).forEach(p=>{
+        const st = paymentStatus(c,p.key);
+        if(st.status!=='paid' || !st.paidDate) return;
+        rows.push({date:st.paidDate, caseNumber:c.caseNumber, yachtName:c.yachtName, description:p.label, direction:p.direction, amount:p.amount});
+      });
+      c.customPayments.forEach(cp=>{
+        if(cp.status!=='paid' || !cp.paidDate) return;
+        rows.push({date:cp.paidDate, caseNumber:c.caseNumber, yachtName:c.yachtName, description:cp.description||'Extra payment', direction:cp.direction, amount: cp.amount!=='' ? num(cp.amount) : null});
+      });
+    }catch(e){ /* a corrupted record shouldn't break the whole export */ }
+  });
+  const filtered = rows.filter(r=> (!dateFrom || r.date>=dateFrom) && (!dateTo || r.date<=dateTo));
+  filtered.sort((a,b)=> a.date.localeCompare(b.date));
+  return filtered;
 }
 
 function paymentStatus(c, key){
@@ -1507,8 +1543,50 @@ function renderStatistics(){
       <div class="stat-card"><div class="num">${fmtMoney(grand.retailCommission)}</div><div class="lbl">Retail Broker commission</div></div>
       <div class="stat-card"><div class="num">${fmtMoney(grand.centralCommission)}</div><div class="lbl">Central Agent commission</div></div>
     </div>
+    ${renderCashFlowSection()}
     ${years.map(y=>renderYearTable(y, groups[y])).join('')}
     ${noYear.length ? renderYearTable('No year found in case number', noYear) : ''}
+  `;
+}
+
+function renderCashFlowSection(){
+  const from = STATE.view.cashFlowFrom || '';
+  const to = STATE.view.cashFlowTo || '';
+  const rows = buildCashFlowRows(from, to);
+  const totalIn = rows.filter(r=>r.direction==='in').reduce((s,r)=>s+(r.amount||0),0);
+  const totalOut = rows.filter(r=>r.direction==='out').reduce((s,r)=>s+(r.amount||0),0);
+  return `
+    <div class="card">
+      <div class="card-head"><h2><span class="eyebrow">Export</span>&nbsp; Cash Flow</h2><span class="muted" style="font-size:12px;">${rows.length} transfer${rows.length===1?'':'s'}</span></div>
+      <div class="card-body no-print" style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="field" style="margin-bottom:0;"><label class="field-label">From</label><input type="date" id="cashflow-from" value="${esc(from)}"></div>
+        <div class="field" style="margin-bottom:0;"><label class="field-label">To</label><input type="date" id="cashflow-to" value="${esc(to)}"></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table>
+          <thead><tr><th>Date</th><th>Case #</th><th>Yacht</th><th>Description</th><th style="text-align:right;">Incoming (€)</th><th style="text-align:right;">Outgoing (€)</th></tr></thead>
+          <tbody>
+            ${rows.length ? rows.map(r=>`
+            <tr>
+              <td class="mono">${fmtDate(r.date)}</td>
+              <td class="mono">${r.caseNumber?esc(r.caseNumber):'<span class="muted">—</span>'}</td>
+              <td>${esc(r.yachtName)||'<span class="muted">—</span>'}</td>
+              <td>${esc(r.description)}</td>
+              <td style="text-align:right;" class="amount">${r.direction==='in' ? fmtMoney(r.amount) : '—'}</td>
+              <td style="text-align:right;" class="amount">${r.direction==='out' ? fmtMoney(r.amount) : '—'}</td>
+            </tr>`).join('') : `<tr><td colspan="6">${emptyState('No transfers in this period','Paid incoming/outgoing payments will show up here once you set a date range that has some, or clear the dates to see everything.')}</td></tr>`}
+          </tbody>
+          ${rows.length ? `<tfoot>
+            <tr>
+              <td colspan="4" style="text-align:right;font-weight:700;">Total</td>
+              <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(totalIn)}</td>
+              <td style="text-align:right;font-weight:700;" class="amount">${fmtMoney(totalOut)}</td>
+            </tr>
+          </tfoot>` : ''}
+        </table>
+      </div>
+    </div>
   `;
 }
 
@@ -2365,6 +2443,10 @@ function wireGlobalEvents(){
   if(searchQ) searchQ.addEventListener('input', (e)=>{ STATE.view.query = e.target.value; render(); focusEl('search-q'); });
   const filterRole = document.getElementById('filter-role');
   if(filterRole) filterRole.addEventListener('change', (e)=>{ STATE.view.roleFilter = e.target.value; render(); });
+  const cashFlowFrom = document.getElementById('cashflow-from');
+  if(cashFlowFrom) cashFlowFrom.addEventListener('change', (e)=>{ STATE.view.cashFlowFrom = e.target.value; render(); });
+  const cashFlowTo = document.getElementById('cashflow-to');
+  if(cashFlowTo) cashFlowTo.addEventListener('change', (e)=>{ STATE.view.cashFlowTo = e.target.value; render(); });
   app.querySelectorAll('[data-sort-field]').forEach(el=>el.addEventListener('click', ()=>{
     const field = el.dataset.sortField;
     if(STATE.view.sortField === field){
