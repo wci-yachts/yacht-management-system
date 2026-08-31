@@ -779,11 +779,12 @@ function buildScheduleItemsCharter(c){
   const depositDue = addDays(c.contractSignDate, 5);
   const balanceDue = subMonths(c.charterStartDate, 1);
   /* If the contract is signed less than a month before departure, there's no
-     time left for a separate deposit installment: the client pays the full
-     amount in one go ("Client Balance"), due the day the contract is signed,
-     and the Client Deposit / CA Deposit lines don't apply at all. */
+     time left to collect a separate deposit from the client: they pay the
+     full amount in one go ("Client Balance"), due the day the contract is
+     signed, and the Client Deposit line doesn't apply. This only changes
+     what we ask the CLIENT for — what we forward to the Central Agent /
+     Owner stays split into the normal deposit + balance installments. */
   const lateSign = !!(c.contractSignDate && c.charterStartDate && c.contractSignDate > balanceDue);
-  const effectiveBalanceDue = lateSign ? c.contractSignDate : balanceDue;
   const list = [];
 
   /* --- cascading shortfall logic ---
@@ -804,24 +805,26 @@ function buildScheduleItemsCharter(c){
   const depositActual = overrideAmount('client_deposit');
   const depositShortfall = (!lateSign && depositActual!==null) ? (depositExpected - depositActual) : 0;
 
-  const balanceBaseExpected = lateSign ? (depositExpected + rate*0.5 + vatAmt + apaAmt + delivery) : (rate*0.5 + vatAmt + apaAmt + delivery);
+  const balanceBaseExpected = rate*0.5 + vatAmt + apaAmt + delivery;
   const balanceExpected = balanceBaseExpected + depositShortfall;
   const balanceActual = overrideAmount('client_balance');
   const balanceShortfall = balanceActual!==null ? (balanceExpected - balanceActual) : 0;
 
-  const caDepositExpected = rate*0.5 - retailComm;
-
   const depositCascadeNote = depositShortfall!==0
     ? `Client Deposit is ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'short':'over'} — added to Client Balance below`
     : null;
-  const balanceCascadeNote = lateSign
-    ? 'Full amount — contract signed less than a month before departure, so there is no separate deposit'
-    : (depositShortfall!==0
-      ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
-      : null);
+  const balanceCascadeNote = depositShortfall!==0
+    ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
+    : null;
   const apaCascadeNote = balanceShortfall!==0
     ? `Reduced by ${fmtMoney(Math.abs(balanceShortfall))} — the Client Balance is still ${balanceShortfall>0?'short':'over'} by that amount`
     : null;
+
+  /* Client-facing amount only: full total in one payment when lateSign,
+     the normal 50% balance otherwise. What we forward on (ca_balance,
+     owner_apa_delivery below) always uses the normal, unmerged balanceExpected. */
+  const clientBalanceAmount = lateSign ? (depositExpected + balanceExpected) : balanceExpected;
+  const clientBalanceDue = lateSign ? c.contractSignDate : balanceDue;
 
   list.push({
     key:'client_deposit', label:'Client Deposit', party:'From Client',
@@ -834,39 +837,37 @@ function buildScheduleItemsCharter(c){
   list.push({
     key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
     amount: isRetail ? retailComm : caComm,
-    due: lateSign ? effectiveBalanceDue : depositDue,
-    note: lateSign ? 'Due when the client balance is received' : 'Due when client deposit is received',
+    due: depositDue,
+    note:'Due when client deposit is received',
     always:true, direction:'out', ledger:true
   });
   list.push({
     key:'ca_deposit', label:'Payment to Central Agent — Deposit', party:'To Central Agent',
-    amount: caDepositExpected,
+    amount: rate*0.5 - retailComm,
     due: depositDue,
     note:'50% Charter Rate less our Retail Broker commission',
-    visible: isRetail && !lateSign, direction:'out', ledger:true
+    visible: isRetail, direction:'out', ledger:true
   });
-  const caBalanceExpected = lateSign ? (balanceExpected - retailComm) : balanceExpected;
-
   list.push({
     key:'client_balance', label:'Client Balance', party:'From Client',
-    amount: balanceExpected,
-    due: effectiveBalanceDue,
-    note: lateSign ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing' : '50% Charter Rate + VAT + APA + Delivery',
-    cascadeNote: balanceCascadeNote,
+    amount: clientBalanceAmount,
+    due: clientBalanceDue,
+    note: lateSign ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing (signed less than a month before departure, so there is no separate deposit)' : '50% Charter Rate + VAT + APA + Delivery',
+    cascadeNote: lateSign ? null : balanceCascadeNote,
     always:true, direction:'in', ledger:true
   });
   list.push({
     key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
-    amount: caBalanceExpected,
-    due: effectiveBalanceDue,
-    note: lateSign ? 'Full Charter Rate + VAT + APA + Delivery, less our Retail Broker commission — due on contract signing' : '50% Charter Rate + VAT + APA + Delivery',
+    amount: balanceExpected,
+    due: balanceDue,
+    note:'50% Charter Rate + VAT + APA + Delivery',
     cascadeNote: isRetail ? balanceCascadeNote : null,
     visible: isRetail, direction:'out', ledger:true
   });
   list.push({
     key:'owner_apa_delivery', label:'APA + Delivery', party:'To Owner',
     amount: (apaAmt + delivery) - (!isRetail ? balanceShortfall : 0),
-    due: effectiveBalanceDue,
+    due: balanceDue,
     note:'Due on receipt of client balance',
     cascadeNote: !isRetail ? apaCascadeNote : null,
     visible: !isRetail, direction:'out', ledger:true
