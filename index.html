@@ -801,9 +801,15 @@ function buildScheduleItemsCharter(c){
     const ov = overrides[key];
     return (ov && ov.amount!=='' && ov.amount!==undefined && ov.amount!==null) ? num(ov.amount) : null;
   };
+  /* Removing Client Deposit from a file (the × in the schedule table) folds
+     its amount into Client Balance too, the same way a late-signed contract
+     does — the client just ends up paying it all in one go. */
+  const depositManuallyHidden = !!(c.hiddenPayments && c.hiddenPayments['client_deposit']);
+  const depositFolded = lateSign || depositManuallyHidden;
+
   const depositExpected = isRetail ? rate*0.5 : (rate*0.5 - retailComm);
   const depositActual = overrideAmount('client_deposit');
-  const depositShortfall = (!lateSign && depositActual!==null) ? (depositExpected - depositActual) : 0;
+  const depositShortfall = (!depositFolded && depositActual!==null) ? (depositExpected - depositActual) : 0;
 
   const balanceBaseExpected = rate*0.5 + vatAmt + apaAmt + delivery;
   const balanceExpected = balanceBaseExpected + depositShortfall;
@@ -820,11 +826,22 @@ function buildScheduleItemsCharter(c){
     ? `Reduced by ${fmtMoney(Math.abs(balanceShortfall))} — the Client Balance is still ${balanceShortfall>0?'short':'over'} by that amount`
     : null;
 
-  /* Client-facing amount only: full total in one payment when lateSign,
-     the normal 50% balance otherwise. What we forward on (ca_balance,
+  /* Client-facing amount only: full total in one payment when the deposit is
+     folded in (late signing, or manually removed from this file), the
+     normal 50% balance otherwise. What we forward on (ca_balance,
      owner_apa_delivery below) always uses the normal, unmerged balanceExpected. */
-  const clientBalanceAmount = lateSign ? (depositExpected + balanceExpected) : balanceExpected;
+  const clientBalanceAmount = depositFolded ? (depositExpected + balanceExpected) : balanceExpected;
   const clientBalanceDue = lateSign ? c.contractSignDate : balanceDue;
+  const clientBalanceNote = lateSign
+    ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing (signed less than a month before departure, so there is no separate deposit)'
+    : depositManuallyHidden
+      ? 'Full Charter Rate + VAT + APA + Delivery — includes the Client Deposit'
+      : '50% Charter Rate + VAT + APA + Delivery';
+  const clientBalanceCascadeNote = lateSign
+    ? null
+    : depositManuallyHidden
+      ? `Includes ${fmtMoney(depositExpected)} for "Client Deposit" — both paid together`
+      : balanceCascadeNote;
 
   list.push({
     key:'client_deposit', label:'Client Deposit', party:'From Client',
@@ -852,8 +869,8 @@ function buildScheduleItemsCharter(c){
     key:'client_balance', label:'Client Balance', party:'From Client',
     amount: clientBalanceAmount,
     due: clientBalanceDue,
-    note: lateSign ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing (signed less than a month before departure, so there is no separate deposit)' : '50% Charter Rate + VAT + APA + Delivery',
-    cascadeNote: lateSign ? null : balanceCascadeNote,
+    note: clientBalanceNote,
+    cascadeNote: clientBalanceCascadeNote,
     always:true, direction:'in', ledger:true
   });
   list.push({
