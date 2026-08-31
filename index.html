@@ -829,8 +829,8 @@ function buildScheduleItemsCharter(c){
   const balanceCascadeNote = depositShortfall!==0
     ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
     : null;
-  const apaCascadeNote = balanceShortfall!==0
-    ? `Reduced by ${fmtMoney(Math.abs(balanceShortfall))} — the Client Balance is still ${balanceShortfall>0?'short':'over'} by that amount`
+  const apaCascadeNote = balanceShortfall>0
+    ? `Reduced by ${fmtMoney(balanceShortfall)} — the Client Balance is still short by that amount`
     : null;
 
   /* Client-facing amount only: full total in one payment when the deposit is
@@ -890,7 +890,7 @@ function buildScheduleItemsCharter(c){
   });
   list.push({
     key:'owner_apa_delivery', label:'APA + Delivery', party:'To Owner',
-    amount: (apaAmt + delivery) - (!isRetail ? balanceShortfall : 0),
+    amount: (apaAmt + delivery) - (!isRetail && balanceShortfall>0 ? balanceShortfall : 0),
     due: balanceDue,
     note:'Due on receipt of client balance',
     cascadeNote: !isRetail ? apaCascadeNote : null,
@@ -1865,6 +1865,8 @@ function renderCaseDetail(id){
   const hiddenPresets = getHiddenPresetPayments(c);
   const unifiedRows = getUnifiedScheduleRows(c);
   const ledger = buildLedger(c);
+  const hasReconAdjustment = c.reconciliation && c.reconciliation.amount!=='' && c.reconciliation.amount!==null && num(c.reconciliation.amount)!==0;
+  const showReconForm = Math.abs(ledger.diff)>=0.005 || !!STATE.view.reconEditOpen;
 
   return `
   <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
@@ -2143,10 +2145,11 @@ function renderCaseDetail(id){
           </tr>
         </tfoot>` : ''}
       </table>
-      ${ledger.rows.length && Math.abs(ledger.diff)>=0.005 ? `
+      ${ledger.rows.length && showReconForm ? `
       <div class="no-print" style="padding:16px 20px;border-top:1px solid var(--line);background:var(--danger-bg);">
-        <div style="font-size:12.5px;color:var(--danger);font-weight:700;margin-bottom:8px;">
-          Incoming and outgoing totals don't match (difference: ${fmtMoney(ledger.diff)}). If this is a known leftover amount, record it below:
+        <div style="font-size:12.5px;color:var(--danger);font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <span>${Math.abs(ledger.diff)>=0.005 ? `Incoming and outgoing totals don't match (difference: ${fmtMoney(ledger.diff)}). If this is a known leftover amount, record it below:` : 'Review or change the manual adjustment below:'}</span>
+          ${Math.abs(ledger.diff)<0.005 ? `<button class="btn btn-ghost btn-sm" data-recon-close>Done</button>` : ''}
         </div>
         <div class="row c3">
           <div class="field" style="margin-bottom:0;"><label class="field-label">Adjustment amount (€)</label><input type="text" inputmode="decimal" data-recon="amount" data-money value="${esc(c.reconciliation.amount)}" placeholder="0.00"></div>
@@ -2158,7 +2161,13 @@ function renderCaseDetail(id){
           </div>
           <div class="field" style="margin-bottom:0;"><label class="field-label">Note</label><input type="text" data-recon="note" value="${esc(c.reconciliation.note)}" placeholder="e.g. bank fee, rounding, refuso"></div>
         </div>
-      </div>` : ''}
+      </div>` : (ledger.rows.length && hasReconAdjustment ? `
+      <div class="no-print" style="padding:16px 20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="font-size:12.5px;color:var(--ink-soft);">
+          Manual adjustment: ${fmtMoney(num(c.reconciliation.amount))} added to ${c.reconciliation.direction==='in'?'Incoming':'Outgoing'}${c.reconciliation.note?' — '+esc(c.reconciliation.note):''}
+        </div>
+        <button class="btn btn-ghost btn-sm" data-recon-edit>Edit</button>
+      </div>` : '')}
     </div>
   </div>
   </div>
@@ -2787,9 +2796,23 @@ function wireGlobalEvents(){
     app.querySelectorAll('[data-recon]').forEach(el=>{
       el.addEventListener(liveEventFor(el), ()=>{
         c.reconciliation[el.dataset.recon] = el.value;
+        /* keep the form open even if this edit brings incoming/outgoing back
+           into balance — otherwise it'd vanish out from under whoever's
+           still typing in it. */
+        STATE.view.reconEditOpen = true;
         persistOnly();
         softRerenderCase(el);
       });
+    });
+    const reconEditBtn = app.querySelector('[data-recon-edit]');
+    if(reconEditBtn) reconEditBtn.addEventListener('click', ()=>{
+      STATE.view.reconEditOpen = true;
+      render();
+    });
+    const reconCloseBtn = app.querySelector('[data-recon-close]');
+    if(reconCloseBtn) reconCloseBtn.addEventListener('click', ()=>{
+      STATE.view.reconEditOpen = false;
+      render();
     });
   }
 }
