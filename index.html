@@ -562,11 +562,18 @@ function daysFromToday(dateStr){
 }
 /* Native date/time pickers get closed by any DOM re-render while they're open,
    and re-rendering mid-keystroke on a partially-typed date wipes what was
-   typed. So date/time fields commit on 'change' (once a full value is picked)
-   rather than on every 'input'. Checkboxes/selects also use 'change'. */
+   typed. 'change' isn't safe either for a field that already has a value —
+   browsers fire it after EVERY keystroke that leaves the value fully valid,
+   not just once at the end, so re-rendering on 'change' was re-focusing the
+   field back to its first segment on every digit typed into an existing
+   date. Date/time fields commit on 'blur' instead (once you actually leave
+   the field), same principle as the money fields' blur-only formatting.
+   Checkboxes/selects still use 'change' — they're a single discrete action,
+   not something you type into. */
 function liveEventFor(el){
   if(el.tagName==='SELECT') return 'change';
-  if(el.tagName==='INPUT' && ['date','time','checkbox','radio'].includes(el.type)) return 'change';
+  if(el.tagName==='INPUT' && ['checkbox','radio'].includes(el.type)) return 'change';
+  if(el.tagName==='INPUT' && ['date','time'].includes(el.type)) return 'blur';
   return 'input';
 }
 /* Only text-like inputs (and textarea) support selectionStart/selectionEnd —
@@ -2557,7 +2564,7 @@ function wireGlobalEvents(){
       c.hiddenPayments[el.dataset.hidePayment] = true;
       persistAndRender();
     }));
-    app.querySelectorAll('[data-sale-due]').forEach(el=>el.addEventListener('change', ()=>{
+    app.querySelectorAll('[data-sale-due]').forEach(el=>el.addEventListener('blur', ()=>{
       if(!c.saleDueDates) c.saleDueDates = {};
       c.saleDueDates[el.dataset.saleDue] = el.value;
       persistAndRender();
