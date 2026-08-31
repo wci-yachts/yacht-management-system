@@ -872,18 +872,25 @@ function buildScheduleItemsCharter(c){
     cascadeNote: !isRetail ? apaCascadeNote : null,
     visible: !isRetail, direction:'out', ledger:true
   });
+  /* If "First to Owner — Charter Start" is removed from this file (the × in
+     the schedule table), its amount isn't just dropped — it's folded into
+     Balance to Owner instead, since the two ended up being paid together,
+     with an alert on that row explaining why the amount is larger. */
+  const ownerStartAmount = rate*0.5 - (retailComm + caComm);
+  const ownerStartHidden = !!(c.hiddenPayments && c.hiddenPayments['owner_start']);
   list.push({
     key:'owner_start', label:'First to Owner — Charter Start', party:'To Owner',
-    amount: rate*0.5 - (retailComm + caComm),
+    amount: ownerStartAmount,
     due: c.charterStartDate,
     note:'50% Charter Rate less both brokers\' commissions',
     visible: !isRetail, direction:'out', ledger:true
   });
   list.push({
     key:'owner_balance', label:'Balance to Owner', party:'To Owner',
-    amount: rate*0.5 + vatAmt,
+    amount: rate*0.5 + vatAmt + (ownerStartHidden ? ownerStartAmount : 0),
     due: c.charterEndDate,
-    note:'50% Charter Rate + VAT — due on charter end date',
+    note: ownerStartHidden ? '50% Charter Rate + VAT, plus "First to Owner — Charter Start"' : '50% Charter Rate + VAT — due on charter end date',
+    cascadeNote: ownerStartHidden ? `Includes ${fmtMoney(ownerStartAmount)} for "First to Owner — Charter Start" — both paid together` : null,
     visible: !isRetail, direction:'out', ledger:true
   });
   list.push({
@@ -1948,7 +1955,7 @@ function renderCaseDetail(id){
     <div class="card-head"><h2><span class="eyebrow">Schedule</span>&nbsp; Payments & Reminders</h2></div>
     ${unifiedRows.some(r=>r.type==='fixed' && r.data.cascadeNote) ? `
     <div class="no-print" style="padding:12px 20px;background:var(--danger-bg);border-bottom:1px solid var(--line);color:var(--danger);font-size:12.5px;font-weight:600;">
-      ⚠ A shortfall was detected and has cascaded through the payment schedule below — check the flagged rows.
+      ⚠ One or more payments below carry an adjustment — check the flagged rows.
     </div>` : ''}
     <div class="card-body" style="padding:0;">
       <table>
