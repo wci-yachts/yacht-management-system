@@ -899,22 +899,37 @@ function buildScheduleItemsCharter(c){
   /* If "First to Owner — Charter Start" is removed from this file (the × in
      the schedule table), its amount isn't just dropped — it's folded into
      Balance to Owner instead, since the two ended up being paid together,
-     with an alert on that row explaining why the amount is larger. */
+     with an alert on that row explaining why the amount is larger. And if
+     it's kept but its actual amount (entered by hand) turns out higher or
+     lower than expected, that difference cascades into Balance to Owner
+     too, the same way a Client Deposit shortfall cascades into Client
+     Balance above. */
   const ownerStartAmount = rate*0.5 - (retailComm + caComm);
   const ownerStartHidden = !!(c.hiddenPayments && c.hiddenPayments['owner_start']);
+  const ownerStartActual = overrideAmount('owner_start');
+  const ownerStartShortfall = (!ownerStartHidden && ownerStartActual!==null) ? (ownerStartAmount - ownerStartActual) : 0;
+  const ownerStartCascadeNote = ownerStartShortfall!==0
+    ? `First to Owner is ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'short':'over'} — added to Balance to Owner below`
+    : null;
+  const ownerBalanceBase = rate*0.5 + vatAmt;
   list.push({
     key:'owner_start', label:'First to Owner — Charter Start', party:'To Owner',
     amount: ownerStartAmount,
     due: c.charterStartDate,
     note:'50% Charter Rate less both brokers\' commissions',
+    cascadeNote: ownerStartCascadeNote,
     visible: !isRetail, direction:'out', ledger:true
   });
   list.push({
     key:'owner_balance', label:'Balance to Owner', party:'To Owner',
-    amount: rate*0.5 + vatAmt + (ownerStartHidden ? ownerStartAmount : 0),
+    amount: ownerBalanceBase + (ownerStartHidden ? ownerStartAmount : ownerStartShortfall),
     due: c.charterEndDate,
-    note: ownerStartHidden ? '50% Charter Rate + VAT, plus "First to Owner — Charter Start"' : '50% Charter Rate + VAT — due on charter end date',
-    cascadeNote: ownerStartHidden ? `Includes ${fmtMoney(ownerStartAmount)} for "First to Owner — Charter Start" — both paid together` : null,
+    note: ownerStartHidden
+      ? '50% Charter Rate + VAT, plus "First to Owner — Charter Start"'
+      : (ownerStartShortfall!==0 ? '50% Charter Rate + VAT, adjusted for the First to Owner variance' : '50% Charter Rate + VAT — due on charter end date'),
+    cascadeNote: ownerStartHidden
+      ? `Includes ${fmtMoney(ownerStartAmount)} for "First to Owner — Charter Start" — both paid together`
+      : (ownerStartShortfall!==0 ? `Includes the ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'shortfall':'overpayment'} carried over from "First to Owner — Charter Start" (base amount would be ${fmtMoney(ownerBalanceBase)})` : null),
     visible: !isRetail, direction:'out', ledger:true
   });
   list.push({
