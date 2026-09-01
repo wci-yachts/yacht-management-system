@@ -2033,6 +2033,7 @@ function renderPreferenceListDetail(id){
       <div class="row c2">${pvField('Pace', d.pace)}</div>
       ${pvTags('Interested in', d.interests)}
       ${pvField('Sightseeing wishlist', d.sightseeing_wishlist)}
+      ${pvField('Other equipment requested (extra charge)', d.equipment_requests)}
     </div>
   </div>
 
@@ -2045,7 +2046,7 @@ function renderPreferenceListDetail(id){
       ${pvTags('Items', dn.breakfastItems)}${pvTags('Spreads', dn.breakfastSpreads)}${pvField('Notes', bf.notes)}
       <div class="divider-label">Lunch</div>
       ${pvTags('Style', ln.type)}
-      <div class="row c2">${pvField('Weight', ln.weight)}${pvField('Service', ln.service)}</div>
+      <div class="row c3">${pvField('Weight', ln.weight)}${pvField('Service', ln.service)}${pvField('Courses', ln.courses)}</div>
       ${pvField('Comments', ln.comments)}
       ${pvField('Afternoon tea', dn.afternoonTea) ? `<div class="divider-label">Afternoon Tea</div>${pvField('', dn.afternoonTea)}` : ''}
       <div class="divider-label">Dinner</div>
@@ -2058,6 +2059,7 @@ function renderPreferenceListDetail(id){
       <div class="row c2">${pvField('Dine ashore', dn.dineAshore)}${pvField('Beef doneness', dn.beefDoneness)}</div>
       ${pvTags('Cooking style', dn.cookingStyle)}
       <div class="row c2">${pvField('Soup', dn.soup)}${pvField('Mayo / cream sauces OK', dn.mayoCream)}</div>
+      ${pvField('Additional info', dn.additionalInfo)}
     </div>
   </div>
 
@@ -2075,7 +2077,7 @@ function renderPreferenceListDetail(id){
   <div class="card">
     <div class="card-head"><h2><span class="eyebrow">Diets &amp; Cuisine</span>&nbsp; Special Requirements</h2></div>
     <div class="card-body">
-      ${pvTags('Special diets', d.special_diets)}${pvField('Other diet', d.special_diets_other)}
+      ${pvTags('Special diets', d.special_diets)}${pvField('Other diet', d.special_diets_other)}${pvField('Applies to', d.special_diets_who)}
       ${pvTags('Cuisine preferences', fd.cuisineTags)}${pvField('Other cuisine', d.cuisine_style)}${pvField('Dislikes', fd.cuisineDislike)}
       ${pvTags('Fish/seafood', fd.fishTypes)}${pvField('Fish dislikes', fd.fishDislike)}
       ${pvField('Favourite meats', fd.meatFavorites)}
@@ -2105,10 +2107,10 @@ function renderPreferenceListDetail(id){
       ${pvField('Beers', wp.beers)}${pvField('Cocktails', d.cocktails)}
       <div class="divider-label">Non-Alcoholic</div>
       <div class="row c3">${pvField('Milk', bev.milkType)}${pvField('Water', bev.waterType)}${pvField('Water brand', bev.waterBrand)}</div>
-      <div class="row c2">${pvField('Coffee', bev.coffeeType)}${pvField('Coffee notes', bev.coffeeNotes)}</div>
-      <div class="row c2">${pvField('Tea', bev.teaType)}${pvField('Tea notes', bev.teaNotes)}</div>
-      <div class="row c3">${pvField('Sweetener', bev.sweetenerType)}${pvField('Mixers', bev.mixersType)}${pvField('Mixer brand', bev.mixersBrand)}</div>
-      <div class="row c2">${pvField('Juice', bev.juiceType)}${pvField('Juice notes', bev.juiceNotes)}</div>
+      ${pvTags('Coffee', bev.coffeeTypes)}${pvField('Coffee notes', bev.coffeeNotes)}
+      ${pvTags('Tea', bev.teaTypes)}${pvField('Tea notes', bev.teaNotes)}
+      ${pvTags('Sweetener', bev.sweetenerTypes)}${pvTags('Mixers', bev.mixersTypes)}${pvField('Mixer brand', bev.mixersBrand)}
+      ${pvTags('Juice', bev.juiceTypes)}${pvField('Juice notes', bev.juiceNotes)}
       ${pvTags('Soft drink types', bev.softDrinkTypes)}${pvField('Soft drinks notes', d.soft_drinks)}
     </div>
   </div>

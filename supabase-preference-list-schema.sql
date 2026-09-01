@@ -21,11 +21,13 @@ create table if not exists preference_lists (
   pace text,                         -- 'Busy, active days' | 'Relaxed, slow-paced' | 'A mixture'
   interests jsonb,                   -- ['Sightseeing', 'Diving', ...]
   sightseeing_wishlist text,
+  equipment_requests text,           -- other equipment to buy/rent/have on board, extra charge to client
 
-  dining jsonb,                      -- meal times, breakfast/lunch/dinner style, canapes, snacks, dine ashore, cooking style, etc.
+  dining jsonb,                      -- meal times, breakfast/lunch/dinner style, canapes, snacks, dine ashore, cooking style, additionalInfo, etc.
   food_grid jsonb,                   -- [{item, like, dislike, notes}, ...]
   special_diets jsonb,               -- ['Vegan', 'Halal', ...]
   special_diets_other text,
+  special_diets_who text,            -- which guest(s) the diets/allergies above apply to
   vegetarian_eats jsonb,             -- {eggs, cheese, fish}
   cuisine_style text,
   favorite_dishes text,
