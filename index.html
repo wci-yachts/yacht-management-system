@@ -614,6 +614,7 @@ function newCase(fileType){
     caBrokerName: '', caAgencyName: '', caCommissionPct: type==='sale' ? '' : 5, caCommissionOverride: null,
     charterRate: '',
     vatPct: 22, vatOverride: null,
+    vatViaAgency: false, // true = VAT excluded from Balance to Owner/Central Agent and paid to the Shipping Agency separately instead — varies by boat
     saleVatPaid: '', // 'paid' | 'unpaid' — sale files only
     saleDepositPct: 50, // % of sale price due as deposit/confirmatory earnest — sale files only, editable
     apaPct: 35, apaOverride: null,
@@ -882,9 +883,9 @@ function buildScheduleItemsCharter(c){
   });
   list.push({
     key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
-    amount: balanceExpected,
+    amount: balanceExpected - (c.vatViaAgency ? vatAmt : 0),
     due: balanceDue,
-    note:'50% Charter Rate + VAT + APA + Delivery',
+    note: c.vatViaAgency ? '50% Charter Rate + APA + Delivery — VAT excluded, paid to the Shipping Agency separately' : '50% Charter Rate + VAT + APA + Delivery',
     cascadeNote: isRetail ? balanceCascadeNote : null,
     visible: isRetail, direction:'out', ledger:true
   });
@@ -911,7 +912,8 @@ function buildScheduleItemsCharter(c){
   const ownerStartCascadeNote = ownerStartShortfall!==0
     ? `First to Owner is ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'short':'over'} — added to Balance to Owner below`
     : null;
-  const ownerBalanceBase = rate*0.5 + vatAmt;
+  const ownerBalanceBase = rate*0.5 + (c.vatViaAgency ? 0 : vatAmt);
+  const ownerBalanceVatNote = c.vatViaAgency ? '50% Charter Rate — VAT excluded, paid to the Shipping Agency separately' : '50% Charter Rate + VAT — due on charter end date';
   list.push({
     key:'owner_start', label:'First to Owner — Charter Start', party:'To Owner',
     amount: ownerStartAmount,
@@ -925,8 +927,8 @@ function buildScheduleItemsCharter(c){
     amount: ownerBalanceBase + (ownerStartHidden ? ownerStartAmount : ownerStartShortfall),
     due: c.charterEndDate,
     note: ownerStartHidden
-      ? '50% Charter Rate + VAT, plus "First to Owner — Charter Start"'
-      : (ownerStartShortfall!==0 ? '50% Charter Rate + VAT, adjusted for the First to Owner variance' : '50% Charter Rate + VAT — due on charter end date'),
+      ? `${ownerBalanceVatNote}, plus "First to Owner — Charter Start"`
+      : (ownerStartShortfall!==0 ? `${ownerBalanceVatNote}, adjusted for the First to Owner variance` : ownerBalanceVatNote),
     cascadeNote: ownerStartHidden
       ? `Includes ${fmtMoney(ownerStartAmount)} for "First to Owner — Charter Start" — both paid together`
       : (ownerStartShortfall!==0 ? `Includes the ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'shortfall':'overpayment'} carried over from "First to Owner — Charter Start" (base amount would be ${fmtMoney(ownerBalanceBase)})` : null),
@@ -965,7 +967,7 @@ function buildScheduleItemsCharter(c){
     amount: vatAmt,
     due: addDays(c.charterEndDate, 5),
     note:'Preset to total VAT',
-    always:true, direction:'out', ledger:true
+    visible: !!c.vatViaAgency, direction:'out', ledger:true
   });
   return list;
 }
@@ -1968,6 +1970,10 @@ function renderCaseDetail(id){
       <div class="row c2">
         <div class="field"><label class="field-label">APA %</label><input type="text" inputmode="decimal" data-f="apaPct" value="${esc(c.apaPct)}"></div>
         <div class="field"><label class="field-label">APA Total (€) ${c.apaOverride!==null && c.apaOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="apaOverride" data-money placeholder="${apaAmt.toFixed(2)}" value="${c.apaOverride!==null?esc(c.apaOverride):''}"></div>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" id="vat-via-agency" data-vat-agency ${c.vatViaAgency?'checked':''}>
+        <label for="vat-via-agency">VAT paid to the Shipping Agency separately — excluded from Balance to Owner / Payment to Central Agent (varies by boat)</label>
       </div>`}
     </div>
   </div>
@@ -2278,13 +2284,20 @@ function renderAttachmentRow(c, key, label){
   </div>`;
 }
 
+function hasLedgerMismatch(c){
+  try{ return Math.abs(buildLedger(c).diff) >= 0.005; }
+  catch(e){ return false; }
+}
 function renderStatusChip(c, withLabel){
   const phase = getEffectivePhase(c);
   const meta = STATUS_META[phase] || STATUS_META.negotiation;
+  const mismatchDot = hasLedgerMismatch(c)
+    ? `<span class="status-dot" style="background:var(--danger);" title="Incoming and outgoing totals don't match"></span>`
+    : '';
   if(withLabel===false){
-    return `<span class="status-dot" style="background:${meta.dot};" title="${esc(meta.label)}"></span>`;
+    return `<span style="display:inline-flex;align-items:center;gap:5px;"><span class="status-dot" style="background:${meta.dot};" title="${esc(meta.label)}"></span>${mismatchDot}</span>`;
   }
-  return `<span class="status-chip" title="${esc(meta.label)}"><span class="status-dot" style="background:${meta.dot};"></span>${esc(meta.label)}</span>`;
+  return `<span class="status-chip" title="${esc(meta.label)}"><span class="status-dot" style="background:${meta.dot};"></span>${esc(meta.label)}${mismatchDot}</span>`;
 }
 
 function renderStatusControl(c){
@@ -2743,6 +2756,11 @@ function wireGlobalEvents(){
       c.attachments[el.dataset.att] = el.checked;
       persistOnly();
     }));
+    const vatAgencyToggle = app.querySelector('[data-vat-agency]');
+    if(vatAgencyToggle) vatAgencyToggle.addEventListener('change', ()=>{
+      c.vatViaAgency = vatAgencyToggle.checked;
+      persistAndRender();
+    });
     const addBtn = app.querySelector('[data-addendum-add]');
     if(addBtn) addBtn.addEventListener('click', ()=>{
       c.attachments.addendums.push({name:'', done:false});
