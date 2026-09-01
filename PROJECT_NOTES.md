@@ -59,6 +59,24 @@ Il gestionale (sezione Feedback → Sync Feedback) legge quella tabella usando l
 chiave `service_role` (privata) e importa le nuove risposte, agganciandole
 automaticamente alla pratica giusta quando barca e data coincidono.
 
+## Preference List clienti
+Stesso schema del feedback: form pubblico **in un repository separato**
+(`wci-yachts/preference-list-form`, file `preference-list.html`), ospitato come
+progetto Vercel indipendente. Scrive in una tabella Supabase dedicata,
+`preference_lists`, usando la chiave `anon` — schema SQL in
+`supabase-preference-list-schema.sql`.
+
+A differenza del feedback, questo form non ha una modalità di sync-back nel
+gestionale (nessuno legge `preference_lists` da qui, per ora). Il gestionale
+si limita a generare il link da mandare al cliente: nella scheda di ogni
+pratica (sezione "Send → Preference List") si imposta una volta sola l'URL
+base del form pubblico (salvato condiviso in `STATE.preferenceListSync.baseUrl`),
+e i due pulsanti "Copy link" costruiscono l'URL completo aggiungendo
+`client=`, `yacht=`, `start=`, `end=` (precompilano il form) e, per la versione
+brandizzata, `wci=1`. Lo stesso file `preference-list.html` serve entrambe le
+versioni — con o senza `wci=1` mostra o nasconde loghi/colori West Coast
+International, letti da `location.search` al caricamento.
+
 ## Cose da sapere prima di modificare il codice
 - Tutti i campi importo/percentuale sono `type="text" inputmode="decimal"`,
   **non** `type="number"` — è una scelta deliberata: i controlli nativi dei
@@ -87,4 +105,5 @@ automaticamente alla pratica giusta quando barca e data coincidono.
 - `index.html` — l'applicazione
 - `supabase-workspace-schema.sql` — schema per la modalità multiutente (tabella `workspace`)
 - `supabase-schema.sql` — schema per la tabella `feedback` (usata da feedback-form.html, in un altro repository)
+- `supabase-preference-list-schema.sql` — schema per la tabella `preference_lists` (usata da preference-list.html, repo `wci-yachts/preference-list-form`)
 - `PROJECT_NOTES.md` — questo file

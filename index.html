@@ -371,6 +371,7 @@ let STATE = {
   cases: [],
   feedback: [],
   feedbackSync: {formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''},
+  preferenceListSync: {baseUrl:''},
   view: { tab: 'dashboard', caseId: null }
 };
 let nextCaseSeq = 1;
@@ -407,12 +408,15 @@ function tryLoadLocal(){
       if(parsed && parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
         STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
       }
+      if(parsed && parsed.preferenceListSync && typeof parsed.preferenceListSync==='object'){
+        STATE.preferenceListSync = Object.assign({baseUrl:''}, parsed.preferenceListSync);
+      }
     }
   }catch(e){ /* storage unavailable — session-only mode */ }
 }
 function persistLocalSnapshot(){
   try{
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync}));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync}));
   }catch(e){ /* ignore — export/import remains the reliable path */ }
 }
 function tryPersistLocal(){
@@ -434,7 +438,7 @@ async function pushToServer(){
        rules, so it must not end up stored in the shared workspace row where
        any logged-in teammate could read it back out. */
     const feedbackSyncToShare = Object.assign({}, STATE.feedbackSync, {secretKey:''});
-    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare};
+    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync};
     const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
     if(error) throw error;
   }catch(e){
@@ -458,6 +462,9 @@ async function loadFromServer(){
     if(parsed && parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
       const keepLocalSecretKey = STATE.feedbackSync.secretKey; // never overwritten by a sync — it's kept per-device only
       STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync, {secretKey: keepLocalSecretKey});
+    }
+    if(parsed && parsed.preferenceListSync && typeof parsed.preferenceListSync==='object'){
+      STATE.preferenceListSync = Object.assign({baseUrl:''}, parsed.preferenceListSync);
     }
     persistLocalSnapshot(); // keep the offline copy on this device fresh with whatever just came from the server
     return true;
@@ -1946,6 +1953,8 @@ function renderCaseDetail(id){
     </div>
   </div>
 
+  ${renderPreferenceListSection(c)}
+
   <div class="card">
     <div class="card-head"><h2><span class="eyebrow">Financials</span>&nbsp; ${c.type==='sale' ? 'Sale Price & VAT' : 'Rate, VAT & APA'}</h2></div>
     <div class="card-body">
@@ -2275,6 +2284,40 @@ function renderFeedbackChecklistRow(c){
     <label for="att-feedback">Feedback received${linked?'':' (flags automatically once linked)'}</label>
     ${linked ? `<button class="btn btn-ghost btn-sm no-print" data-open-feedback="${linked.id}">Open →</button>` : ''}
   </div>`;
+}
+
+function buildPreferenceListUrl(c, wci){
+  const base = (STATE.preferenceListSync.baseUrl || '').trim();
+  if(!base) return '';
+  const params = new URLSearchParams();
+  if(wci) params.set('wci','1');
+  if(c.clientName) params.set('client', c.clientName);
+  if(c.yachtName) params.set('yacht', c.yachtName);
+  if(c.charterStartDate) params.set('start', c.charterStartDate);
+  if(c.charterEndDate) params.set('end', c.charterEndDate);
+  const qs = params.toString();
+  if(!qs) return base;
+  return base + (base.includes('?') ? '&' : '?') + qs;
+}
+function renderPreferenceListSection(c){
+  const baseUrl = STATE.preferenceListSync.baseUrl || '';
+  const open = !!(STATE.view.openSections && STATE.view.openSections.prefListSettings);
+  return `
+    <div class="card no-print">
+      <div class="card-head" data-toggle-section="prefListSettings" style="cursor:pointer;">
+        <h2><span class="eyebrow">Send</span>&nbsp; Preference List <span class="muted" style="font-weight:400;">${open?'▾':'▸'}</span></h2>
+      </div>
+      <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-brass btn-sm" id="btn-copy-preflist-wci" ${!baseUrl?'disabled':''}>Copy link (West Coast)</button>
+        <button class="btn btn-ghost btn-sm" id="btn-copy-preflist-plain" ${!baseUrl?'disabled':''}>Copy link (no branding)</button>
+      </div>
+      ${open || !baseUrl ? `
+      <div class="card-body" style="border-top:1px solid var(--line);">
+        <div class="field"><label class="field-label">Preference List form URL (set once — shared by everyone)</label><input type="text" id="preflist-base-url" value="${esc(baseUrl)}" placeholder="https://preference-list-form.vercel.app/preference-list.html"></div>
+        <div class="field-hint">Client name, yacht and charter dates from this file are added to the link automatically.</div>
+      </div>` : ''}
+    </div>
+  `;
 }
 
 function renderAttachmentRow(c, key, label){
@@ -2761,6 +2804,15 @@ function wireGlobalEvents(){
       c.vatViaAgency = vatAgencyToggle.checked;
       persistAndRender();
     });
+    const copyPrefWciBtn = document.getElementById('btn-copy-preflist-wci');
+    if(copyPrefWciBtn) copyPrefWciBtn.addEventListener('click', ()=>copyToClipboard(buildPreferenceListUrl(c, true)));
+    const copyPrefPlainBtn = document.getElementById('btn-copy-preflist-plain');
+    if(copyPrefPlainBtn) copyPrefPlainBtn.addEventListener('click', ()=>copyToClipboard(buildPreferenceListUrl(c, false)));
+    const prefBaseUrlInput = document.getElementById('preflist-base-url');
+    if(prefBaseUrlInput) prefBaseUrlInput.addEventListener('change', ()=>{
+      STATE.preferenceListSync.baseUrl = prefBaseUrlInput.value.trim();
+      persistAndRender();
+    });
     const addBtn = app.querySelector('[data-addendum-add]');
     if(addBtn) addBtn.addEventListener('click', ()=>{
       c.attachments.addendums.push({name:'', done:false});
@@ -2894,7 +2946,7 @@ function persistAndRender(){ tryPersistLocal(); render(); }
 
 /* ---------------- export / import ---------------- */
 function exportData(){
-  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync}, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2918,6 +2970,9 @@ function handleImport(e){
         STATE.feedback = normalizeFeedbackList(parsed.feedback||[]);
         if(parsed.feedbackSync && typeof parsed.feedbackSync==='object'){
           STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
+        }
+        if(parsed.preferenceListSync && typeof parsed.preferenceListSync==='object'){
+          STATE.preferenceListSync = Object.assign({baseUrl:''}, parsed.preferenceListSync);
         }
         STATE.view = {tab:'cases', caseId:null};
         persistAndRender();
