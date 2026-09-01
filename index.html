@@ -371,7 +371,8 @@ let STATE = {
   cases: [],
   feedback: [],
   feedbackSync: {formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''},
-  preferenceListSync: {baseUrl:''},
+  preferenceListSync: {baseUrl:'', lastSyncedAt:''},
+  preferenceLists: [],
   view: { tab: 'dashboard', caseId: null }
 };
 let nextCaseSeq = 1;
@@ -409,14 +410,17 @@ function tryLoadLocal(){
         STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
       }
       if(parsed && parsed.preferenceListSync && typeof parsed.preferenceListSync==='object'){
-        STATE.preferenceListSync = Object.assign({baseUrl:''}, parsed.preferenceListSync);
+        STATE.preferenceListSync = Object.assign({baseUrl:'', lastSyncedAt:''}, parsed.preferenceListSync);
+      }
+      if(parsed && Array.isArray(parsed.preferenceLists)){
+        STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists);
       }
     }
   }catch(e){ /* storage unavailable — session-only mode */ }
 }
 function persistLocalSnapshot(){
   try{
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync}));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync,preferenceLists:STATE.preferenceLists}));
   }catch(e){ /* ignore — export/import remains the reliable path */ }
 }
 function tryPersistLocal(){
@@ -438,7 +442,7 @@ async function pushToServer(){
        rules, so it must not end up stored in the shared workspace row where
        any logged-in teammate could read it back out. */
     const feedbackSyncToShare = Object.assign({}, STATE.feedbackSync, {secretKey:''});
-    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync};
+    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists};
     const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
     if(error) throw error;
   }catch(e){
@@ -464,7 +468,10 @@ async function loadFromServer(){
       STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync, {secretKey: keepLocalSecretKey});
     }
     if(parsed && parsed.preferenceListSync && typeof parsed.preferenceListSync==='object'){
-      STATE.preferenceListSync = Object.assign({baseUrl:''}, parsed.preferenceListSync);
+      STATE.preferenceListSync = Object.assign({baseUrl:'', lastSyncedAt:''}, parsed.preferenceListSync);
+    }
+    if(parsed && Array.isArray(parsed.preferenceLists)){
+      STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists);
     }
     persistLocalSnapshot(); // keep the offline copy on this device fresh with whatever just came from the server
     return true;
@@ -717,6 +724,24 @@ function normalizeFeedbackList(list){
   return (Array.isArray(list)?list:[]).map(normalizeFeedback);
 }
 function getFeedback(id){ return STATE.feedback.find(f=>f.id===id); }
+/* Preference lists are kept close to how they arrive from Supabase (snake_case
+   column names under .data) rather than remapped into camelCase — that's the
+   exact shape both the print view and the "copy captain link" reuse, and it's
+   also exactly what preference-list.html's own hydrateStateFromPayload()
+   expects when a captain opens the link. */
+function normalizePreferenceList(raw){
+  return {
+    id: (raw && raw.id) || uid(),
+    serverId: (raw && raw.serverId) || '',
+    receivedAt: (raw && raw.receivedAt) || '',
+    linkedCaseId: (raw && raw.linkedCaseId) || '',
+    data: (raw && typeof raw.data==='object' && raw.data) || {}
+  };
+}
+function normalizePreferenceLists(list){
+  return (Array.isArray(list)?list:[]).map(normalizePreferenceList);
+}
+function getPreferenceList(id){ return STATE.preferenceLists.find(p=>p.id===id); }
 function feedbackAvgRating(f){
   const vals = RATING_FIELDS.map(([k])=>num(f.ratings[k])).filter(v=>v>0);
   if(!vals.length) return null;
@@ -1174,6 +1199,7 @@ function renderTopbar(){
     ['cases','Charter Files'],
     ['calendar','Calendar'],
     ['feedback','Feedback'],
+    ['preferences','Preferences'],
     ['statistics','Statistics'],
   ];
   return `
@@ -1194,6 +1220,7 @@ function renderView(){
   if(STATE.view.tab==='cases') return renderCasesList();
   if(STATE.view.tab==='case') return renderCaseDetail(STATE.view.caseId);
   if(STATE.view.tab==='feedback') return STATE.view.feedbackId ? renderFeedbackDetail(STATE.view.feedbackId) : renderFeedbackList();
+  if(STATE.view.tab==='preferences') return STATE.view.prefListId ? renderPreferenceListDetail(STATE.view.prefListId) : renderPreferenceListsPage();
   if(STATE.view.tab==='calendar') return renderCalendar();
   if(STATE.view.tab==='statistics') return renderStatistics();
   return '';
@@ -1866,6 +1893,269 @@ function renderFeedbackDetail(id){
   `;
 }
 
+/* ---- preference lists (received from clients via preference-list.html) ---- */
+function buildCaptainLink(pl){
+  const base = (STATE.preferenceListSync.baseUrl || '').trim();
+  if(!base) return '';
+  const sender = (currentUser && currentUser.email) ? currentUser.email : 'West Coast International';
+  const payload = Object.assign({}, pl.data, {_sender: sender});
+  const encoded = encodeURIComponent(JSON.stringify(payload));
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}view=1&data=${encoded}`;
+}
+function pvField(label, value){
+  if(value===undefined || value===null || value==='' || value===false) return '';
+  const display = value===true ? 'Yes' : esc(String(value)).replace(/\n/g,'<br>');
+  return `<div class="field"><div class="field-label">${esc(label)}</div><div style="font-size:13.5px;">${display}</div></div>`;
+}
+function pvTags(label, arr){
+  if(!Array.isArray(arr) || !arr.length) return '';
+  return `<div class="field"><div class="field-label">${esc(label)}</div><div style="font-size:13.5px;">${arr.map(esc).join(', ')}</div></div>`;
+}
+function pvTable(columns, rows){
+  if(!Array.isArray(rows) || !rows.length) return '';
+  return `<div style="overflow-x:auto;margin:6px 0 14px;"><table><thead><tr>${columns.map(c=>`<th>${esc(c[1])}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${columns.map(c=>`<td>${r[c[0]]!=null && r[c[0]]!=='' ? esc(r[c[0]]) : '<span class=\"muted\">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderPreferenceListsPage(){
+  const q = (STATE.view.prefListQuery||'').toLowerCase();
+  let list = STATE.preferenceLists.filter(pl=>{
+    if(!q) return true;
+    const d = pl.data || {};
+    return (d.yacht_name||'').toLowerCase().includes(q) || (d.client_name||'').toLowerCase().includes(q);
+  });
+  list = list.slice().sort((a,b)=> (b.receivedAt||'').localeCompare(a.receivedAt||''));
+
+  return `
+    <div class="card no-print">
+      <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-brass btn-sm" id="btn-sync-preflists">Sync from server</button>
+        <span class="muted" style="font-size:12px;">${STATE.preferenceListSync.lastSyncedAt ? 'Last synced ' + fmtDate(STATE.preferenceListSync.lastSyncedAt.slice(0,10)) + ' at ' + new Date(STATE.preferenceListSync.lastSyncedAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Never synced yet.'}</span>
+      </div>
+    </div>
+    ${STATE.preferenceLists.length===0 ? `<div class="card"><div class="card-body">${emptyState('No preference lists yet','Received preference lists will show up here once clients submit the form and you sync from server.')}</div></div>` : `
+    <div class="search-bar no-print">
+      <input type="text" id="preflist-search-q" placeholder="Search by yacht or client…" value="${esc(STATE.view.prefListQuery||'')}">
+      <span class="muted" style="font-size:12px;">${list.length} entr${list.length===1?'y':'ies'}</span>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        ${list.length ? `
+        <table>
+          <thead><tr><th>Yacht</th><th>Client</th><th>Charter Dates</th><th>Received</th><th>Charter File</th><th class="no-print"></th></tr></thead>
+          <tbody>
+            ${list.map(pl=>{
+              const d = pl.data||{};
+              const linkedCase = pl.linkedCaseId ? getCase(pl.linkedCaseId) : null;
+              return `<tr class="clickable" data-open-preflist="${pl.id}">
+                <td><strong>${esc(d.yacht_name)||'<span class="muted">Unnamed yacht</span>'}</strong></td>
+                <td>${esc(d.client_name)||'<span class="muted">—</span>'}</td>
+                <td class="mono">${d.charter_start_date?fmtDate(d.charter_start_date):'—'} → ${d.charter_end_date?fmtDate(d.charter_end_date):'—'}</td>
+                <td class="mono">${pl.receivedAt?fmtDate(pl.receivedAt.slice(0,10)):'—'}</td>
+                <td>${linkedCase ? `<span class="mono">${esc(linkedCase.caseNumber)||'—'}</span>` : '<span class="muted">Not linked</span>'}</td>
+                <td class="no-print" style="text-align:right;"><button class="btn btn-ghost btn-sm" data-open-preflist="${pl.id}">Open →</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : emptyState('No matching preference lists','Adjust your search.')}
+      </div>
+    </div>`}
+  `;
+}
+
+function renderPreferenceListDetail(id){
+  const pl = getPreferenceList(id);
+  if(!pl) return emptyState('Preference list not found','It may have been removed.');
+  const d = pl.data || {};
+  const t = d.travel || {};
+  const arr = t.arrival||{}, dep = t.departure||{}, hb = t.hotelBefore||{}, ha = t.hotelAfter||{};
+  const dn = d.dining || {};
+  const bf = dn.breakfast||{}, ln = dn.lunch||{}, dnr = dn.dinner||{}, can = dn.canapes||{}, sn = dn.snacks||{};
+  const fd = d.food_detail || {};
+  const wp = d.wine_preferences || {};
+  const bev = wp.beverages || {};
+  const byColor = wp.byColor || {};
+  const captainLink = buildCaptainLink(pl);
+  const linkedCase = pl.linkedCaseId ? getCase(pl.linkedCaseId) : null;
+
+  return `
+  <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn btn-ghost btn-sm" data-back-to-preflists>← All preferences</button>
+      <span class="mono" style="font-size:13px;color:var(--ink-soft);">${esc(d.yacht_name)||'Unnamed yacht'}</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
+      <button class="btn btn-brass btn-sm" id="btn-copy-captain-link" ${!captainLink?'disabled title="Set the Preference List base URL first (in a Charter File, Send → Preference List)"':''}>Copy captain link</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Preference List</span>&nbsp; ${esc(d.client_name)||'Unnamed client'}</h2></div>
+    <div class="card-body">
+      <div class="row c3">
+        ${pvField('Client', d.client_name)}
+        ${pvField('Yacht', d.yacht_name)}
+        ${pvField('Charter Dates', (d.charter_start_date?fmtDate(d.charter_start_date):'—') + ' → ' + (d.charter_end_date?fmtDate(d.charter_end_date):'—'))}
+      </div>
+      <div class="row c3">
+        ${pvField('Received', pl.receivedAt?fmtDate(pl.receivedAt.slice(0,10)):'—')}
+        ${pvField('Charter File', linkedCase ? (linkedCase.caseNumber||'—') : 'Not linked')}
+        ${pvField('Phone', d.contact_phone)}${pvField('Email', d.contact_email)}
+      </div>
+    </div>
+  </div>
+
+  ${d.charter_party && d.charter_party.length ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Guests</span>&nbsp; Charter Party</h2></div>
+    <div class="card-body">
+      ${pvTable([['name','Name'],['nationality','Nationality'],['dob','Date of Birth'],['passportNo','Passport No.'],['passportExpiry','Passport Expiry']], d.charter_party)}
+    </div>
+  </div>` : ''}
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Travel</span>&nbsp; Arrangements</h2></div>
+    <div class="card-body">
+      <div class="divider-label">Arrival</div>
+      <div class="row c4">${pvField('Date', arr.date?fmtDate(arr.date):'')}${pvField('Airport', arr.airport)}${pvField('Flight', arr.flight)}${pvField('Time', arr.time)}</div>
+      ${pvField('Notes', arr.notes)}
+      <div class="divider-label">Departure</div>
+      <div class="row c4">${pvField('Date', dep.date?fmtDate(dep.date):'')}${pvField('Airport', dep.airport)}${pvField('Flight', dep.flight)}${pvField('Time', dep.time)}</div>
+      ${pvField('Notes', dep.notes)}
+      ${(hb.name||ha.name) ? `<div class="divider-label">Hotels</div><div class="row c2">${pvField('Before', hb.name?`${hb.name} (${hb.in||'—'} → ${hb.out||'—'})`:'')}${pvField('After', ha.name?`${ha.name} (${ha.in||'—'} → ${ha.out||'—'})`:'')}</div>` : ''}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Vacation</span>&nbsp; Pace &amp; Interests</h2></div>
+    <div class="card-body">
+      <div class="row c2">${pvField('Pace', d.pace)}</div>
+      ${pvTags('Interested in', d.interests)}
+      ${pvField('Sightseeing wishlist', d.sightseeing_wishlist)}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Dining</span>&nbsp; Preferences</h2></div>
+    <div class="card-body">
+      <div class="row c3">${pvField('Breakfast time', (dn.mealTimes||{}).breakfast)}${pvField('Lunch time', (dn.mealTimes||{}).lunch)}${pvField('Dinner time', (dn.mealTimes||{}).dinner)}</div>
+      <div class="divider-label">Breakfast</div>
+      <div class="row c2">${pvField('Type', bf.type)}${pvField('Weight', bf.weight)}</div>
+      ${pvTags('Items', dn.breakfastItems)}${pvTags('Spreads', dn.breakfastSpreads)}${pvField('Notes', bf.notes)}
+      <div class="divider-label">Lunch</div>
+      ${pvTags('Style', ln.type)}
+      <div class="row c2">${pvField('Weight', ln.weight)}${pvField('Service', ln.service)}</div>
+      ${pvField('Comments', ln.comments)}
+      ${pvField('Afternoon tea', dn.afternoonTea) ? `<div class="divider-label">Afternoon Tea</div>${pvField('', dn.afternoonTea)}` : ''}
+      <div class="divider-label">Dinner</div>
+      <div class="row c3">${pvField('Style', dnr.style)}${pvField('Formal', dnr.formal)}${pvField('Aperitifs', dnr.aperitifs)}</div>
+      <div class="row c3">${pvField('Starters & desserts', dnr.startersDesserts)}${pvField('Cheese & biscuits', dnr.cheeseBiscuits)}${pvField('Service', dnr.service)}</div>
+      <div class="row c2">${pvField('Courses', dnr.courses)}${pvField('Comments', dnr.comments)}</div>
+      ${(can.beforeLunch||can.beforeDinner||can.light||can.comments) ? `<div class="divider-label">Canapés</div><div class="row c2">${pvField('When', [can.beforeLunch&&'Before lunch',can.beforeDinner&&'Before dinner',can.light&&'Light'].filter(Boolean).join(', '))}${pvField('Comments', can.comments)}</div>` : ''}
+      ${(sn.midMorningSweet||sn.midMorningSavoury||sn.afternoonSweet||sn.afternoonSavoury||sn.lateEvening||sn.other||sn.favourites) ? `<div class="divider-label">Snacks</div><div class="row c2">${pvField('When', [sn.midMorningSweet&&'Mid-morning sweet',sn.midMorningSavoury&&'Mid-morning savoury',sn.afternoonSweet&&'Afternoon sweet',sn.afternoonSavoury&&'Afternoon savoury',sn.lateEvening&&'Late evening'].filter(Boolean).join(', '))}${pvField('Favourites', sn.favourites)}</div>${pvField('Other', sn.other)}` : ''}
+      <div class="divider-label">General</div>
+      <div class="row c2">${pvField('Dine ashore', dn.dineAshore)}${pvField('Beef doneness', dn.beefDoneness)}</div>
+      ${pvTags('Cooking style', dn.cookingStyle)}
+      <div class="row c2">${pvField('Soup', dn.soup)}${pvField('Mayo / cream sauces OK', dn.mayoCream)}</div>
+    </div>
+  </div>
+
+  ${d.food_grid && d.food_grid.length ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Food</span>&nbsp; Likes &amp; Dislikes</h2></div>
+    <div class="card-body" style="padding:0;">
+      <table>
+        <thead><tr><th>Item</th><th>Like</th><th>Dislike</th><th>Notes</th></tr></thead>
+        <tbody>${d.food_grid.filter(f=>f.like||f.dislike||f.notes).map(f=>`<tr><td>${esc(f.item)}</td><td>${f.like?'✓':''}</td><td>${f.dislike?'✓':''}</td><td>${esc(f.notes)||''}</td></tr>`).join('') || `<tr><td colspan="4">${emptyState('No specific likes/dislikes marked','')}</td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>` : ''}
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Diets &amp; Cuisine</span>&nbsp; Special Requirements</h2></div>
+    <div class="card-body">
+      ${pvTags('Special diets', d.special_diets)}${pvField('Other diet', d.special_diets_other)}
+      ${pvTags('Cuisine preferences', fd.cuisineTags)}${pvField('Other cuisine', d.cuisine_style)}${pvField('Dislikes', fd.cuisineDislike)}
+      ${pvTags('Fish/seafood', fd.fishTypes)}${pvField('Fish dislikes', fd.fishDislike)}
+      ${pvField('Favourite meats', fd.meatFavorites)}
+      ${pvTags('Bread', fd.breadTypes)}${pvTags('Salads', fd.saladTypes)}
+      <div class="row c2">${pvField('Soup', fd.soupPreference)}${pvField('Cheese', fd.cheesePreference)}</div>
+      ${pvField('Vegetables', fd.vegetablesPreference)}
+      ${pvTags('Fruit', fd.fruitTypes)}${pvField('Other fruit', fd.fruitOther)}${pvField('Dessert', fd.dessertPreference)}
+      ${pvField('Favourite dishes overall', d.favorite_dishes)}
+      ${pvField('Ingredients/spices to avoid', d.ingredients_avoid)}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Bar</span>&nbsp; Wine &amp; Drinks</h2></div>
+    <div class="card-body">
+      ${pvTags('Wine style', wp.styleTags)}${pvField('Prefers sample wine list', wp.sampleWineList)}
+      <div class="row c4">
+        ${pvField('Red', (byColor.red||{}).price || (byColor.red||{}).qty ? `${(byColor.red||{}).price||''} · qty ${(byColor.red||{}).qty||'—'}` : '')}
+        ${pvField('White', (byColor.white||{}).price || (byColor.white||{}).qty ? `${(byColor.white||{}).price||''} · qty ${(byColor.white||{}).qty||'—'}` : '')}
+        ${pvField('Rosé', (byColor.rose||{}).price || (byColor.rose||{}).qty ? `${(byColor.rose||{}).price||''} · qty ${(byColor.rose||{}).qty||'—'}` : '')}
+        ${pvField('Champagne', (byColor.champagne||{}).price || (byColor.champagne||{}).qty ? `${(byColor.champagne||{}).price||''} · qty ${(byColor.champagne||{}).qty||'—'}` : '')}
+      </div>
+      ${pvTable([['country','Country'],['name','Wine'],['qty','Qty']], d.wines)}
+      ${(d.champagne && (d.champagne.nonVintage||d.champagne.vintage)) ? pvField('Specific champagne', [d.champagne.nonVintage, d.champagne.vintage].filter(Boolean).join(' / ') + (d.champagne.qty?` — qty ${d.champagne.qty}`:'')) : ''}
+      ${pvTable([['type','Type'],['price','Max price']], d.max_price_per_bottle)}
+      ${pvTable([['type','Type'],['brand','Brand'],['qty','Qty'],['priceRange','Price range']], d.spirits)}
+      ${pvField('Beers', wp.beers)}${pvField('Cocktails', d.cocktails)}
+      <div class="divider-label">Non-Alcoholic</div>
+      <div class="row c3">${pvField('Milk', bev.milkType)}${pvField('Water', bev.waterType)}${pvField('Water brand', bev.waterBrand)}</div>
+      <div class="row c2">${pvField('Coffee', bev.coffeeType)}${pvField('Coffee notes', bev.coffeeNotes)}</div>
+      <div class="row c2">${pvField('Tea', bev.teaType)}${pvField('Tea notes', bev.teaNotes)}</div>
+      <div class="row c3">${pvField('Sweetener', bev.sweetenerType)}${pvField('Mixers', bev.mixersType)}${pvField('Mixer brand', bev.mixersBrand)}</div>
+      <div class="row c2">${pvField('Juice', bev.juiceType)}${pvField('Juice notes', bev.juiceNotes)}</div>
+      ${pvTags('Soft drink types', bev.softDrinkTypes)}${pvField('Soft drinks notes', d.soft_drinks)}
+    </div>
+  </div>
+
+  ${(d.medical_conditions || d.doctor_contact || d.allergies) ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Health</span>&nbsp; Medical &amp; Allergies</h2></div>
+    <div class="card-body">
+      ${pvField('Medical conditions', d.medical_conditions)}
+      ${pvField('Doctor contact', d.doctor_contact)}
+      ${pvField('Allergies', d.allergies)}
+    </div>
+  </div>` : ''}
+
+  ${d.occasions && d.occasions.length ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Celebrate</span>&nbsp; Special Occasions</h2></div>
+    <div class="card-body">
+      ${pvTable([['type','Occasion'],['date','Date'],['who','Who'],['notes','Notes']], (d.occasions||[]).map(o=>Object.assign({}, o, {date: o.date?fmtDate(o.date):''})))}
+    </div>
+  </div>` : ''}
+
+  ${(d.flowers_preference || d.flowers_frequency || d.reading_material) ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Extras</span>&nbsp; Flowers &amp; Reading</h2></div>
+    <div class="card-body">
+      ${pvField('Flowers', d.flowers_preference)}${pvField('Flower frequency', d.flowers_frequency)}
+      ${pvField('Reading material', d.reading_material)}
+    </div>
+  </div>` : ''}
+
+  ${d.cabins && d.cabins.length ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Cabins</span>&nbsp; Allocation</h2></div>
+    <div class="card-body">
+      ${pvTable([['deck','Deck'],['cabin','Cabin'],['type','Type'],['guest','Guest']], d.cabins)}
+    </div>
+  </div>` : ''}
+
+  ${d.additional_notes ? `
+  <div class="card">
+    <div class="card-head"><h2><span class="eyebrow">Notes</span>&nbsp; Anything Else</h2></div>
+    <div class="card-body">${pvField('', d.additional_notes)}</div>
+  </div>` : ''}
+  `;
+}
+
 function renderCaseDetail(id){
   const c = getCase(id);
   if(!c) return emptyState('Charter file not found','It may have been deleted.');
@@ -2302,6 +2592,7 @@ function buildPreferenceListUrl(c, wci){
 function renderPreferenceListSection(c){
   const baseUrl = STATE.preferenceListSync.baseUrl || '';
   const open = !!(STATE.view.openSections && STATE.view.openSections.prefListSettings);
+  const received = STATE.preferenceLists.find(p=>p.linkedCaseId===c.id);
   return `
     <div class="card no-print">
       <div class="card-head" data-toggle-section="prefListSettings" style="cursor:pointer;">
@@ -2315,6 +2606,11 @@ function renderPreferenceListSection(c){
       <div class="card-body" style="border-top:1px solid var(--line);">
         <div class="field"><label class="field-label">Preference List form URL (set once — shared by everyone)</label><input type="text" id="preflist-base-url" value="${esc(baseUrl)}" placeholder="https://preference-list-form.vercel.app/preference-list.html"></div>
         <div class="field-hint">Client name, yacht and charter dates from this file are added to the link automatically.</div>
+      </div>` : ''}
+      ${received ? `
+      <div class="card-body" style="border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="font-size:12.5px;color:var(--ink-soft);">✓ Preference list received${received.receivedAt?' on '+fmtDate(received.receivedAt.slice(0,10)):''}</div>
+        <button class="btn btn-ghost btn-sm" data-open-preflist="${received.id}">Open / print / send to captain →</button>
       </div>` : ''}
     </div>
   `;
@@ -2409,6 +2705,26 @@ function wireGlobalEvents(){
   if(fileInputCsv) fileInputCsv.addEventListener('change', handleImportCsv);
   const syncBtn = document.getElementById('btn-sync-feedback');
   if(syncBtn) syncBtn.addEventListener('click', syncFeedbackFromServer);
+  const syncPrefListsBtn = document.getElementById('btn-sync-preflists');
+  if(syncPrefListsBtn) syncPrefListsBtn.addEventListener('click', syncPreferenceListsFromServer);
+  app.querySelectorAll('[data-open-preflist]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'preferences', prefListId:el.dataset.openPreflist};
+    render();
+  }));
+  app.querySelectorAll('[data-back-to-preflists]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'preferences', prefListId:null};
+    render();
+  }));
+  const prefListSearchQ = document.getElementById('preflist-search-q');
+  if(prefListSearchQ) prefListSearchQ.addEventListener('input', (e)=>{ STATE.view.prefListQuery = e.target.value; render(); focusEl('preflist-search-q'); });
+  const copyCaptainLinkBtn = document.getElementById('btn-copy-captain-link');
+  if(copyCaptainLinkBtn) copyCaptainLinkBtn.addEventListener('click', ()=>{
+    const pl = STATE.view.prefListId ? getPreferenceList(STATE.view.prefListId) : null;
+    if(!pl) return;
+    const link = buildCaptainLink(pl);
+    if(!link){ showToast('Set the Preference List base URL first.', 'error'); return; }
+    copyToClipboard(link);
+  });
   app.querySelectorAll('[data-fbsync]').forEach(el=>{
     el.addEventListener(liveEventFor(el), ()=>{
       STATE.feedbackSync[el.dataset.fbsync] = el.value;
@@ -2946,7 +3262,7 @@ function persistAndRender(){ tryPersistLocal(); render(); }
 
 /* ---------------- export / import ---------------- */
 function exportData(){
-  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists}, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2972,8 +3288,9 @@ function handleImport(e){
           STATE.feedbackSync = Object.assign({formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''}, parsed.feedbackSync);
         }
         if(parsed.preferenceListSync && typeof parsed.preferenceListSync==='object'){
-          STATE.preferenceListSync = Object.assign({baseUrl:''}, parsed.preferenceListSync);
+          STATE.preferenceListSync = Object.assign({baseUrl:'', lastSyncedAt:''}, parsed.preferenceListSync);
         }
+        STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists||[]);
         STATE.view = {tab:'cases', caseId:null};
         persistAndRender();
         showToast('Data imported successfully');
@@ -3102,6 +3419,55 @@ async function syncFeedbackFromServer(){
     showToast(imported > 0 ? (imported + ' new feedback ' + (imported===1?'entry':'entries') + ' synced') : 'No new feedback since last sync');
   }catch(err){
     showToast('Sync failed: ' + err.message, 'error');
+    if(btn){ btn.disabled = false; btn.textContent = 'Sync from server'; }
+  }
+}
+
+/* Reuses the same Supabase project URL + service_role key entered for
+   Feedback sync (Feedback → Feedback settings) — preference_lists lives in
+   the same project, so there's no reason to make someone enter the same
+   credentials twice. */
+async function syncPreferenceListsFromServer(){
+  const s = STATE.feedbackSync;
+  if(!s.endpointUrl){ showToast('Enter the Supabase project URL first (Feedback → Feedback settings).', 'error'); return; }
+  if(!s.secretKey){ showToast('Enter the Supabase service_role key first (Feedback → Feedback settings).', 'error'); return; }
+  const btn = document.getElementById('btn-sync-preflists');
+  if(btn){ btn.disabled = true; btn.textContent = 'Syncing…'; }
+  try{
+    const base = s.endpointUrl.replace(/\/$/, '');
+    const url = new URL(base + '/rest/v1/preference_lists');
+    url.searchParams.set('select', '*');
+    url.searchParams.set('order', 'received_at.asc');
+    if(STATE.preferenceListSync.lastSyncedAt) url.searchParams.set('received_at', 'gt.' + STATE.preferenceListSync.lastSyncedAt);
+    const res = await fetch(url.toString(), {
+      headers: { 'apikey': s.secretKey, 'Authorization': 'Bearer ' + s.secretKey }
+    });
+    if(!res.ok) throw new Error('Supabase responded with ' + res.status);
+    const list = await res.json();
+    if(!Array.isArray(list)) throw new Error('Unexpected response format');
+
+    const existingServerIds = new Set(STATE.preferenceLists.map(p=>p.serverId).filter(Boolean));
+    let imported = 0;
+    let latestReceivedAt = STATE.preferenceListSync.lastSyncedAt || '';
+    list.forEach(entry=>{
+      if(entry.id && existingServerIds.has(entry.id)) return; // already imported
+      const pl = { id: uid(), serverId: entry.id || '', receivedAt: entry.received_at || '', linkedCaseId: '', data: entry };
+      const yacht = (entry.yacht_name||'').toLowerCase();
+      if(yacht){
+        const match = STATE.cases.find(cs => cs.yachtName && cs.yachtName.toLowerCase()===yacht
+          && (!entry.charter_start_date || cs.charterStartDate===entry.charter_start_date));
+        if(match) pl.linkedCaseId = match.id;
+      }
+      STATE.preferenceLists.push(pl);
+      imported++;
+      if(entry.received_at && entry.received_at > latestReceivedAt) latestReceivedAt = entry.received_at;
+    });
+    STATE.preferenceListSync.lastSyncedAt = latestReceivedAt || new Date().toISOString();
+    persistAndRender();
+    showToast(imported > 0 ? (imported + ' new preference list' + (imported===1?'':'s') + ' synced') : 'No new preference lists since last sync');
+  }catch(err){
+    showToast('Sync failed: ' + err.message, 'error');
+  }finally{
     if(btn){ btn.disabled = false; btn.textContent = 'Sync from server'; }
   }
 }

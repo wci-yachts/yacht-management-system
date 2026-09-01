@@ -66,16 +66,42 @@ progetto Vercel indipendente. Scrive in una tabella Supabase dedicata,
 `preference_lists`, usando la chiave `anon` — schema SQL in
 `supabase-preference-list-schema.sql`.
 
-A differenza del feedback, questo form non ha una modalità di sync-back nel
-gestionale (nessuno legge `preference_lists` da qui, per ora). Il gestionale
-si limita a generare il link da mandare al cliente: nella scheda di ogni
-pratica (sezione "Send → Preference List") si imposta una volta sola l'URL
-base del form pubblico (salvato condiviso in `STATE.preferenceListSync.baseUrl`),
-e i due pulsanti "Copy link" costruiscono l'URL completo aggiungendo
-`client=`, `yacht=`, `start=`, `end=` (precompilano il form) e, per la versione
-brandizzata, `wci=1`. Lo stesso file `preference-list.html` serve entrambe le
-versioni — con o senza `wci=1` mostra o nasconde loghi/colori West Coast
-International, letti da `location.search` al caricamento.
+Nella scheda di ogni pratica (sezione "Send → Preference List") si imposta una
+volta sola l'URL base del form pubblico (salvato condiviso in
+`STATE.preferenceListSync.baseUrl`), e i due pulsanti "Copy link" costruiscono
+l'URL completo aggiungendo `client=`, `yacht=`, `start=`, `end=` (precompilano
+il form) e, per la versione brandizzata, `wci=1`. Lo stesso file
+`preference-list.html` serve entrambe le versioni — con o senza `wci=1` mostra
+o nasconde loghi/colori West Coast International, letti da `location.search`
+al caricamento.
+
+**Sync-back nel gestionale** (a differenza del feedback, aggiunto in seguito):
+Feedback → Preferences → "Sync from server" legge la tabella `preference_lists`
+riusando le STESSE credenziali già inserite per il Feedback sync (stesso
+progetto Supabase, stessa `service_role` key — non c'è un campo separato).
+Agganciamento automatico alla pratica per barca+data, come il feedback.
+Ogni riga sincronizzata viene tenuta quasi intatta nella forma in cui arriva da
+Supabase (snake_case, dentro `.data`), non rimappata in camelCase: è la stessa
+identica forma che `preference-list.html` si aspetta per la modalità di sola
+lettura (vedi sotto), quindi non serve nessun adattatore.
+
+**Stampa/PDF**: la pagina di dettaglio di una preference list ricevuta
+(`renderPreferenceListDetail`) è già la vista "print" — nessun foglio compatto
+separato come per le pratiche: si stampa con `window.print()` e le classi
+`.no-print` esistenti nascondono i controlli.
+
+**Link "sola lettura" per il comandante**: `buildCaptainLink()` prende l'intera
+riga sincronizzata, ci aggiunge `_sender` (email dell'utente loggato), e la
+codifica INTERAMENTE dentro l'URL (`?view=1&data=<json codificato>`) verso lo
+stesso `preference-list.html`. Nessuna nuova lettura pubblica su Supabase è
+stata aperta apposta per questo — i dati (passaporti, allergie, note mediche)
+viaggiano solo dentro il link stesso, mai da un endpoint leggibile da chiunque
+abbia la chiave `anon`. In `preference-list.html`, `?view=1` fa passare la
+pagina in sola lettura: `hydrateStateFromPayload()` ricostruisce lo STATE
+interattivo a partire dai dati ricevuti (stessa forma di `handleSubmit()`, solo
+invertita), e tutte le sezioni vengono renderizzate dentro un
+`<fieldset disabled>` — riusa le stesse funzioni di rendering del form
+compilabile, niente è duplicato.
 
 ## Cose da sapere prima di modificare il codice
 - Tutti i campi importo/percentuale sono `type="text" inputmode="decimal"`,
