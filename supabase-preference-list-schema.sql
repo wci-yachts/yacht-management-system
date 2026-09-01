@@ -22,7 +22,7 @@ create table if not exists preference_lists (
   interests jsonb,                   -- ['Sightseeing', 'Diving', ...]
   sightseeing_wishlist text,
 
-  dining jsonb,                      -- meal times, breakfast/lunch/dinner style, dine ashore, cooking style, etc.
+  dining jsonb,                      -- meal times, breakfast/lunch/dinner style, canapes, snacks, dine ashore, cooking style, etc.
   food_grid jsonb,                   -- [{item, like, dislike, notes}, ...]
   special_diets jsonb,               -- ['Vegan', 'Halal', ...]
   special_diets_other text,
@@ -30,14 +30,15 @@ create table if not exists preference_lists (
   cuisine_style text,
   favorite_dishes text,
   ingredients_avoid text,
+  food_detail jsonb,                 -- cuisine tags, fish/bread/salad/fruit types, meat/soup/cheese/veg/dessert preferences
 
   wines jsonb,                       -- [{country, name, qty}, ...]
   champagne jsonb,                   -- {nonVintage, vintage, qty}
   max_price_per_bottle jsonb,        -- [{type, price}, ...]
-  spirits jsonb,                     -- [{type, brand, qty}, ...]
+  spirits jsonb,                     -- [{type, brand, qty, priceRange}, ...]
   soft_drinks text,
   cocktails text,
-  tea_coffee text,
+  wine_preferences jsonb,            -- style tags, sample wine list, price/qty by color, beers, non-alcoholic beverages
 
   medical_conditions text,
   doctor_contact text,
