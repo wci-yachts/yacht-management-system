@@ -126,6 +126,32 @@ compilabile, niente è duplicato.
   interrompendo la digitazione. Stesso principio dei campi importo: non far
   scattare `render()`/`softRerenderCase()` più spesso del necessario mentre
   l'utente sta ancora scrivendo.
+- **Tutte le cifre in euro si formattano con `fmtMoney()`/`fmtMoneyPlain()`**
+  (migliaia separate da virgola, due decimali: `1,000.00`) — mai con
+  `.toFixed(2)` direttamente. Dato che il valore VERO E PROPRIO dei campi
+  `data-money` ora contiene la virgola delle migliaia (es. `"85,000.00"`),
+  **`num()` la rimuove prima di fare `parseFloat`** — qualunque nuovo punto
+  del codice che legga un campo importo deve passare da `num()`, mai da
+  `parseFloat()`/`Number()` diretto, altrimenti il valore si tronca alla
+  virgola.
+- **Cascata "shortfall" a 3 tranche**: se un charter viene pagato dal
+  cliente in 3 tranche invece delle 2 consuete, si riattiva (↺) il pagamento
+  preimpostato ma nascosto di default "APA Balance from Client" (e il suo
+  gemello "APA Balance to Owner", solo ruolo Central Agent) e lo si
+  riordina prima di "APA + Delivery". Il suo importo effettivo (se
+  presente) riduce lo scostamento (`balanceShortfall`) che altrimenti
+  verrebbe scaricato per intero su "APA + Delivery" — vedi
+  `netApaShortfall` in `buildScheduleItemsCharter()`. Il giroconto verso il
+  Central Agent (ruolo Retail) non partecipa a questa cascata, per lo
+  stesso motivo per cui non partecipa neanche a quella normale a 2 tranche.
+- **`hiddenPayments` di default**: `newCase('charter')` nasconde già
+  all'apertura i pagamenti di fine-charter meno frequenti (crew tip, APA
+  refund, le due nuove righe "APA Balance") — si riattivano con "↺" come
+  qualunque altro pagamento rimosso. Le pratiche già esistenti non vengono
+  toccate retroattivamente.
+- **Reconciliation** (`buildLedger()`) mostra solo i pagamenti con la
+  spunta "pagato" confermata (non quelli previsti/in attesa), ordinati per
+  data di pagamento effettiva — non per scadenza.
 
 ## File in questo repository
 - `index.html` — l'applicazione

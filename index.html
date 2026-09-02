@@ -373,6 +373,7 @@ let STATE = {
   feedbackSync: {formLink:'', endpointUrl:'', secretKey:'', lastSyncedAt:''},
   preferenceListSync: {baseUrl:'', lastSyncedAt:''},
   preferenceLists: [],
+  staffInitials: ['BB','MZ'], // "Person in Charge" dropdown options, shared — grows via "+ Add new…"
   view: { tab: 'dashboard', caseId: null }
 };
 let nextCaseSeq = 1;
@@ -415,12 +416,15 @@ function tryLoadLocal(){
       if(parsed && Array.isArray(parsed.preferenceLists)){
         STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists);
       }
+      if(parsed && Array.isArray(parsed.staffInitials) && parsed.staffInitials.length){
+        STATE.staffInitials = parsed.staffInitials;
+      }
     }
   }catch(e){ /* storage unavailable — session-only mode */ }
 }
 function persistLocalSnapshot(){
   try{
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync,preferenceLists:STATE.preferenceLists}));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync,preferenceLists:STATE.preferenceLists,staffInitials:STATE.staffInitials}));
   }catch(e){ /* ignore — export/import remains the reliable path */ }
 }
 function tryPersistLocal(){
@@ -442,7 +446,7 @@ async function pushToServer(){
        rules, so it must not end up stored in the shared workspace row where
        any logged-in teammate could read it back out. */
     const feedbackSyncToShare = Object.assign({}, STATE.feedbackSync, {secretKey:''});
-    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists};
+    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials};
     const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
     if(error) throw error;
   }catch(e){
@@ -472,6 +476,9 @@ async function loadFromServer(){
     }
     if(parsed && Array.isArray(parsed.preferenceLists)){
       STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists);
+    }
+    if(parsed && Array.isArray(parsed.staffInitials) && parsed.staffInitials.length){
+      STATE.staffInitials = parsed.staffInitials;
     }
     persistLocalSnapshot(); // keep the offline copy on this device fresh with whatever just came from the server
     return true;
@@ -549,7 +556,18 @@ function fmtMoney(n){
   if(n===null||n===undefined||isNaN(n)) return '—';
   return '€' + Number(n).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
-function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+/* Same 1,000.00-style formatting as fmtMoney but without the € sign — for
+   placeholders and for the actual text written into data-money input
+   fields, so every amount in the app looks the same whether it's read-only
+   or being edited. */
+function fmtMoneyPlain(n){
+  if(n===null||n===undefined||isNaN(n)) return '0.00';
+  return Number(n).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+/* Comma-tolerant: every data-money field now displays with thousand
+   separators (see fmtMoneyPlain), so parsing back out has to strip them
+   first or a value like "1,000.00" would truncate to 1 at the comma. */
+function num(v){ const n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n) ? 0 : n; }
 function fmtDate(d){
   if(!d) return '—';
   const dt = new Date(d+'T00:00:00');
@@ -623,9 +641,11 @@ function newCase(fileType){
     charterEndTime: '12:00',
     departureLocation: '',
     arrivalLocation: '',
+    cruisingArea: '',
+    clientNationality: '',
     contractSignDate: toISODate(new Date()),
-    retailBrokerName: '', retailAgencyName: 'West Coast International', retailCommissionPct: type==='sale' ? '' : 15, retailCommissionOverride: null,
-    caBrokerName: '', caAgencyName: '', caCommissionPct: type==='sale' ? '' : 5, caCommissionOverride: null,
+    retailBrokerName: '', retailAgencyName: 'West Coast International', retailCommissionPct: type==='sale' ? '' : 15, retailCommissionOverride: null, retailCommissionNote: '',
+    caBrokerName: '', caAgencyName: '', caCommissionPct: type==='sale' ? '' : 5, caCommissionOverride: null, caCommissionNote: '',
     charterRate: '',
     vatPct: 22, vatOverride: null,
     vatViaAgency: false, // true = VAT excluded from Balance to Owner/Central Agent and paid to the Shipping Agency separately instead — varies by boat
@@ -637,15 +657,20 @@ function newCase(fileType){
     apaRefundOutAmount: '',
     crewTipReceivedAmount: '',
     crewTipForwardAmount: '',
+    apaBalanceClientAmount: '',
     saleDueDates: {}, // key -> 'YYYY-MM-DD' — manually-set payment due dates, sale files only
     customPayments: [], // {id, description, reason, direction:'in'|'out', amount, due, status, paidDate}
     paymentOverrides: {}, // key -> {amount:'', note:''} — actual amount received/paid + a note, when it differs from the calculated one
-    hiddenPayments: {}, // key -> true for preset payments removed from this file
+    /* Everything after "Balance to Owner" in the schedule is an occasional,
+       end-of-charter tidy-up rather than something every file needs — start
+       new files with it out of the way; the existing "Removed from this
+       file — ↺ restore" control brings any of them back with one click. */
+    hiddenPayments: type==='sale' ? {} : {crew_tip_received:true, crew_tip_forward:true, apa_refund_in:true, apa_refund_out:true, apa_balance_client:true, apa_balance_owner:true},
     paymentOrder: [], // custom display order for preset payments (list of keys); anything not listed falls back to the default order
     reconciliation: {amount:'', direction:'out', note:''},
     payments: {}, // key -> {status:'pending'|'paid', paidDate:''}
     attachments: {
-      contract:false, passport:false, ourInvoice:false, otherBrokerInvoice:false,
+      contract:false, passport:false, kyc:false, ourInvoice:false, otherBrokerInvoice:false, ownerInvoiceToClient:false,
       prefListSent:false, prefListSentToCrew:false, prefListReceived:false,
       addendums: []
     },
@@ -749,6 +774,27 @@ function feedbackAvgRating(f){
 }
 
 /* ---- derived financial figures ---- */
+const COUNTRY_LIST = ['Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria',
+  'Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia',
+  'Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon',
+  'Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica','Croatia','Cuba',
+  'Cyprus','Czech Republic','Democratic Republic of the Congo','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador',
+  'Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon',
+  'Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras',
+  'Hong Kong','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica',
+  'Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kosovo','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho',
+  'Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta',
+  'Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco',
+  'Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea',
+  'North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay','Peru',
+  'Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia',
+  'Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia',
+  'Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea',
+  'South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania',
+  'Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda',
+  'Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City',
+  'Venezuela','Vietnam','Yemen','Zambia','Zimbabwe'];
+
 const STATUS_META = {
   negotiation: {label:'In Negotiation', cls:'badge-idle', dot:'#9aa1a9'},
   option:      {label:'Option', cls:'badge-warn', dot:'#d98b2b'},
@@ -862,8 +908,18 @@ function buildScheduleItemsCharter(c){
   const balanceCascadeNote = depositShortfall!==0
     ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
     : null;
-  const apaCascadeNote = balanceShortfall>0
-    ? `Reduced by ${fmtMoney(balanceShortfall)} — the Client Balance is still short by that amount`
+  /* Occasionally a charter is paid in three client-side installments instead
+     of the usual two: an "APA Balance from Client" top-up, restored (↺) and
+     reordered to sit before "APA + Delivery" below. Once it has an actual
+     amount, it closes part or all of whatever shortfall would otherwise be
+     deducted from APA + Delivery — same principle as the Client Deposit ->
+     Client Balance cascade above, just for a third tranche instead of a
+     second. Central-role/owner-side only, same as APA + Delivery itself. */
+  const apaBalanceHidden = !!(c.hiddenPayments && c.hiddenPayments['apa_balance_client']);
+  const apaBalanceClientActual = (!apaBalanceHidden && c.apaBalanceClientAmount!=='' && c.apaBalanceClientAmount!=null) ? num(c.apaBalanceClientAmount) : null;
+  const netApaShortfall = Math.max(0, balanceShortfall - (apaBalanceClientActual || 0));
+  const apaCascadeNote = netApaShortfall>0
+    ? `Reduced by ${fmtMoney(netApaShortfall)} — the client's payments received so far are still short by that amount`
     : null;
 
   /* Client-facing amount only: full total in one payment when the deposit is
@@ -923,10 +979,24 @@ function buildScheduleItemsCharter(c){
   });
   list.push({
     key:'owner_apa_delivery', label:'APA + Delivery', party:'To Owner',
-    amount: (apaAmt + delivery) - (!isRetail && balanceShortfall>0 ? balanceShortfall : 0),
+    amount: (apaAmt + delivery) - (!isRetail && netApaShortfall>0 ? netApaShortfall : 0),
     due: balanceDue,
     note:'Due on receipt of client balance',
     cascadeNote: !isRetail ? apaCascadeNote : null,
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'apa_balance_client', label:'APA Balance from Client', party:'From Client',
+    amount: c.apaBalanceClientAmount!=='' ? num(c.apaBalanceClientAmount) : null,
+    due: balanceDue,
+    note:'Extra installment for charters paid in three tranches instead of two — enter the amount once known',
+    always:true, manualAmount:true, manualField:'apaBalanceClientAmount', direction:'in', ledger:true
+  });
+  list.push({
+    key:'apa_balance_owner', label:'APA Balance to Owner', party:'To Owner',
+    amount: apaBalanceClientActual || 0,
+    due: balanceDue,
+    note:'Forwarded to the owner — APA never carries commission',
     visible: !isRetail, direction:'out', ledger:true
   });
   /* If "First to Owner — Charter Start" is removed from this file (the × in
@@ -1118,29 +1188,36 @@ function getUnifiedScheduleRows(c){
 }
 
 /* ---- ledger: incoming vs outgoing reconciliation ---- */
+/* Only payments actually confirmed as paid belong in the reconciliation —
+   a pending/expected payment isn't money that has moved yet, so it
+   shouldn't count toward whether incoming and outgoing balance. Rows are
+   dated and sorted by when they were PAID, not their original due date. */
 function buildLedger(c){
   const schedule = buildPaymentSchedule(c).filter(p=>p.ledger);
   const rows = [];
   schedule.forEach(p=>{
     const st = paymentStatus(c,p.key);
+    if(st.status!=='paid') return;
     rows.push({
       description: p.label, reason: p.rowNote ? p.rowNote : p.note, direction: p.direction,
-      amount: p.amount, due: p.due, status: st.status
+      amount: p.amount, paidDate: st.paidDate, status: st.status
     });
   });
   c.customPayments.forEach(cp=>{
+    if(cp.status!=='paid') return;
     rows.push({
       description: cp.description || 'Extra payment', reason: cp.reason, direction: cp.direction,
-      amount: cp.amount!=='' ? num(cp.amount) : null, due: cp.due, status: cp.status
+      amount: cp.amount!=='' ? num(cp.amount) : null, paidDate: cp.paidDate, status: cp.status
     });
   });
   const recon = c.reconciliation;
   if(recon && recon.amount!=='' && num(recon.amount)>0){
     rows.push({
       description:'Reconciliation Adjustment', reason: recon.note || 'Manually entered to balance the ledger',
-      direction: recon.direction, amount: num(recon.amount), due:'', status:'n/a', isRecon:true
+      direction: recon.direction, amount: num(recon.amount), paidDate:'', status:'n/a', isRecon:true
     });
   }
+  rows.sort((a,b)=> (a.paidDate||'9999-99-99').localeCompare(b.paidDate||'9999-99-99'));
   const totalIn = rows.filter(r=>r.direction==='in').reduce((s,r)=>s+(r.amount||0),0);
   const totalOut = rows.filter(r=>r.direction==='out').reduce((s,r)=>s+(r.amount||0),0);
   return {rows, totalIn, totalOut, diff: totalIn-totalOut};
@@ -1356,6 +1433,26 @@ function renderListDeleteButton(id){
   return `<button class="btn btn-ghost btn-sm" data-delete-case-list="${id}" title="Delete this file">Delete</button>`;
 }
 
+/* First pass at a checklist-at-a-glance for the Charter Files list — emoji
+   are shown full-colour when done, greyed out when still missing, each
+   with a tooltip. Meant as a starting point to refine together, not a
+   final design. */
+function renderChecklistIcons(c){
+  const linkedFeedback = STATE.feedback.find(f=>f.linkedCaseId===c.id);
+  const items = [
+    ['📄','Contract', !!c.attachments.contract],
+    ['🛂','Client Passport', !!c.attachments.passport],
+    ['🧾','Our Invoice', !!c.attachments.ourInvoice],
+  ];
+  if(c.role==='central') items.push(['📑','Retail Broker Invoice', !!c.attachments.otherBrokerInvoice]);
+  items.push(['⚓',"Owner's Invoice to Client", !!c.attachments.ownerInvoiceToClient]);
+  if(c.type!=='sale') items.push(['📋','Preference list received', !!c.attachments.prefListReceived]);
+  items.push(['⭐','Feedback received', !!linkedFeedback]);
+  return `<span class="no-print" style="display:inline-flex;gap:3px;">${items.map(([icon,label,done])=>
+    `<span title="${esc(label)}${done?' — done':' — missing'}" style="opacity:${done?'1':'.25'};font-size:14px;">${icon}</span>`
+  ).join('')}</span>`;
+}
+
 function renderCasesTable(cases, sortField, sortDir){
   const col = (field, label, style)=>{
     const active = sortField===field;
@@ -1366,7 +1463,7 @@ function renderCasesTable(cases, sortField, sortDir){
   <div style="overflow-x:auto;">
   <table class="cases-table">
     <thead><tr>
-      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Broker','width:1%;')}${col('payments','Payments')}<th></th><th class="no-print"></th>
+      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Broker','width:1%;')}${col('payments','Payments')}<th class="no-print">Checklist</th><th></th><th class="no-print"></th>
     </tr></thead>
     <tbody>
       ${cases.map(c=>{
@@ -1384,6 +1481,7 @@ function renderCasesTable(cases, sortField, sortDir){
             <td class="mono">${fmtDate(c.charterEndDate)} ${c.charterEndTime||''}<div class="muted" style="font-size:11px;margin-top:2px;">${esc(c.arrivalLocation)||'—'}</div></td>
             <td>${esc(c.personInCharge)||'<span class="muted">—</span>'}</td>
             <td>${overdue.length? `<span class="badge badge-danger">${overdue.length} overdue</span>` : `<span class="badge badge-idle">${pending.length} pending</span>`}</td>
+            <td class="no-print">${renderChecklistIcons(c)}</td>
             <td style="text-align:right;"><button class="btn btn-ghost btn-sm" data-open-case="${c.id}">Open →</button></td>
             <td class="no-print" style="text-align:right;">${renderListDeleteButton(c.id)}</td>
           </tr>`;
@@ -1392,7 +1490,7 @@ function renderCasesTable(cases, sortField, sortDir){
           return `<tr>
             <td><span class="status-chip"><span class="status-dot" style="background:#9aa1a9;"></span>—</span></td>
             <td class="mono">${c.caseNumber ? esc(c.caseNumber) : '<span class="muted">—</span>'}</td>
-            <td colspan="6"><span class="badge badge-danger">Couldn't be opened — outdated or corrupted record</span></td>
+            <td colspan="7"><span class="badge badge-danger">Couldn't be opened — outdated or corrupted record</span></td>
             <td class="no-print" style="text-align:right;" colspan="2">${renderListDeleteButton(c.id)}</td>
           </tr>`;
         }
@@ -2170,6 +2268,7 @@ function renderCaseDetail(id){
   const showReconForm = Math.abs(ledger.diff)>=0.005 || !!STATE.view.reconEditOpen;
 
   return `
+  ${renderSharedDatalists()}
   <div class="no-print" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
     <div style="display:flex;align-items:center;gap:12px;">
       <button class="btn btn-ghost btn-sm" data-back-to-list>← All files</button>
@@ -2227,8 +2326,23 @@ function renderCaseDetail(id){
         <div class="field"><label class="field-label">Yacht Name</label><input type="text" data-f="yachtName" value="${esc(c.yachtName)}" placeholder="e.g. M/Y Serenity"></div>
       </div>
       <div class="row c3">
-        <div class="field"><label class="field-label">Person in Charge</label><input type="text" data-f="personInCharge" value="${esc(c.personInCharge)}" placeholder="Staff member"></div>
-        ${c.type==='sale' ? `<div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>` : ''}
+        <div class="field">
+          <label class="field-label">Person in Charge</label>
+          <select id="person-in-charge-select">
+            <option value="">— Select —</option>
+            ${STATE.staffInitials.map(v=>`<option value="${esc(v)}" ${c.personInCharge===v?'selected':''}>${esc(v)}</option>`).join('')}
+            ${c.personInCharge && !STATE.staffInitials.includes(c.personInCharge) ? `<option value="${esc(c.personInCharge)}" selected>${esc(c.personInCharge)}</option>` : ''}
+            <option value="__add_new__">+ Add new…</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Client Nationality</label>
+          <select data-f="clientNationality">
+            <option value="">— Select —</option>
+            ${COUNTRY_LIST.map(v=>`<option value="${esc(v)}" ${c.clientNationality===v?'selected':''}>${esc(v)}</option>`).join('')}
+          </select>
+        </div>
+        ${c.type==='sale' ? `<div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>` : `<div class="field"><label class="field-label">Cruising Area</label><input type="text" data-f="cruisingArea" list="dl-cruising-areas" value="${esc(c.cruisingArea)}" placeholder="e.g. Balearics"></div>`}
       </div>
       ${c.type==='sale' ? '' : `
       <div class="row c4">
@@ -2238,8 +2352,8 @@ function renderCaseDetail(id){
         <div class="field"><label class="field-label">Charter End Time</label><input type="time" data-f="charterEndTime" value="${esc(c.charterEndTime)}"></div>
       </div>
       <div class="row c3">
-        <div class="field"><label class="field-label">Departure Location</label><input type="text" data-f="departureLocation" value="${esc(c.departureLocation)}"></div>
-        <div class="field"><label class="field-label">Arrival Location</label><input type="text" data-f="arrivalLocation" value="${esc(c.arrivalLocation)}"></div>
+        <div class="field"><label class="field-label">Departure Location</label><input type="text" data-f="departureLocation" list="dl-locations" value="${esc(c.departureLocation)}"></div>
+        <div class="field"><label class="field-label">Arrival Location</label><input type="text" data-f="arrivalLocation" list="dl-locations" value="${esc(c.arrivalLocation)}"></div>
         <div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>
       </div>`}
     </div>
@@ -2265,12 +2379,12 @@ function renderCaseDetail(id){
       <div class="row c4">
         <div class="field"><label class="field-label">Charter Rate (€)</label><input type="text" inputmode="decimal" data-f="charterRate" data-money value="${esc(c.charterRate)}"></div>
         <div class="field"><label class="field-label">VAT %</label><input type="text" inputmode="decimal" data-f="vatPct" value="${esc(c.vatPct)}"></div>
-        <div class="field"><label class="field-label">VAT Total (€) ${c.vatOverride!==null && c.vatOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="vatOverride" data-money placeholder="${vatAmt.toFixed(2)}" value="${c.vatOverride!==null?esc(c.vatOverride):''}"></div>
+        <div class="field"><label class="field-label">VAT Total (€) ${c.vatOverride!==null && c.vatOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="vatOverride" data-money placeholder="${fmtMoneyPlain(vatAmt)}" value="${c.vatOverride!==null?esc(c.vatOverride):''}"></div>
         <div class="field"><label class="field-label">Delivery Fee (€)</label><input type="text" inputmode="decimal" data-f="deliveryFee" data-money value="${esc(c.deliveryFee)}" placeholder="0.00"></div>
       </div>
       <div class="row c2">
         <div class="field"><label class="field-label">APA %</label><input type="text" inputmode="decimal" data-f="apaPct" value="${esc(c.apaPct)}"></div>
-        <div class="field"><label class="field-label">APA Total (€) ${c.apaOverride!==null && c.apaOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="apaOverride" data-money placeholder="${apaAmt.toFixed(2)}" value="${c.apaOverride!==null?esc(c.apaOverride):''}"></div>
+        <div class="field"><label class="field-label">APA Total (€) ${c.apaOverride!==null && c.apaOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="apaOverride" data-money placeholder="${fmtMoneyPlain(apaAmt)}" value="${c.apaOverride!==null?esc(c.apaOverride):''}"></div>
       </div>
       <div class="checklist-item">
         <input type="checkbox" id="vat-via-agency" data-vat-agency ${c.vatViaAgency?'checked':''}>
@@ -2285,17 +2399,19 @@ function renderCaseDetail(id){
       <div class="divider-label">Retail Broker</div>
       <div class="row c4">
         <div class="field"><label class="field-label">Broker Name</label><input type="text" data-f="retailBrokerName" value="${esc(c.retailBrokerName)}"></div>
-        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="retailAgencyName" value="${esc(c.retailAgencyName)}"></div>
+        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="retailAgencyName" list="dl-agency-names" value="${esc(c.retailAgencyName)}"></div>
         <div class="field"><label class="field-label">Commission %</label><input type="text" inputmode="decimal" data-f="retailCommissionPct" value="${esc(c.retailCommissionPct)}"></div>
-        <div class="field"><label class="field-label">Total ${c.retailCommissionOverride!==null && c.retailCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="retailCommissionOverride" data-money placeholder="${retailComm.toFixed(2)}" value="${c.retailCommissionOverride!==null?esc(c.retailCommissionOverride):''}"></div>
+        <div class="field"><label class="field-label">Total ${c.retailCommissionOverride!==null && c.retailCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="retailCommissionOverride" data-money placeholder="${fmtMoneyPlain(retailComm)}" value="${c.retailCommissionOverride!==null?esc(c.retailCommissionOverride):''}"></div>
       </div>
+      <div class="field"><label class="field-label">Notes</label><input type="text" data-f="retailCommissionNote" value="${esc(c.retailCommissionNote)}" placeholder="Any internal note about this broker/commission"></div>
       <div class="divider-label">Central Agent</div>
       <div class="row c4">
         <div class="field"><label class="field-label">Broker Name</label><input type="text" data-f="caBrokerName" value="${esc(c.caBrokerName)}"></div>
-        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="caAgencyName" value="${esc(c.caAgencyName)}"></div>
+        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="caAgencyName" list="dl-agency-names" value="${esc(c.caAgencyName)}"></div>
         <div class="field"><label class="field-label">Commission %</label><input type="text" inputmode="decimal" data-f="caCommissionPct" value="${esc(c.caCommissionPct)}"></div>
-        <div class="field"><label class="field-label">Total (€) ${c.caCommissionOverride!==null && c.caCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="caCommissionOverride" data-money placeholder="${caComm.toFixed(2)}" value="${c.caCommissionOverride!==null?esc(c.caCommissionOverride):''}"></div>
+        <div class="field"><label class="field-label">Total (€) ${c.caCommissionOverride!==null && c.caCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="caCommissionOverride" data-money placeholder="${fmtMoneyPlain(caComm)}" value="${c.caCommissionOverride!==null?esc(c.caCommissionOverride):''}"></div>
       </div>
+      <div class="field"><label class="field-label">Notes</label><input type="text" data-f="caCommissionNote" value="${esc(c.caCommissionNote)}" placeholder="Any internal note about this broker/commission"></div>
     </div>
   </div>
 
@@ -2338,7 +2454,7 @@ function renderCaseDetail(id){
               <td style="text-align:right;">
                 ${p.manualAmount
                   ? `<input type="text" inputmode="decimal" data-f="${p.manualField}" data-money style="width:120px;text-align:right;" value="${esc(c[p.manualField])}" placeholder="0.00">`
-                  : `<input type="text" inputmode="decimal" data-override="amount" data-money data-override-key="${p.key}" style="width:120px;text-align:right;" value="${p.amountOverridden?esc(c.paymentOverrides[p.key].amount):''}" placeholder="${p.expectedAmount!==null&&p.expectedAmount!==undefined?p.expectedAmount.toFixed(2):'0.00'}">
+                  : `<input type="text" inputmode="decimal" data-override="amount" data-money data-override-key="${p.key}" style="width:120px;text-align:right;" value="${p.amountOverridden?esc(c.paymentOverrides[p.key].amount):''}" placeholder="${p.expectedAmount!==null&&p.expectedAmount!==undefined?fmtMoneyPlain(p.expectedAmount):'0.00'}">
                      ${p.amountOverridden ? `<div class="muted" style="font-size:10.5px;margin-top:2px;">expected ${fmtMoney(p.expectedAmount)}</div>` : ''}`}
               </td>
               <td>${badgeFor(st.status, p.due)}</td>
@@ -2386,20 +2502,35 @@ function renderCaseDetail(id){
       <div class="card-body">
         ${renderAttachmentRow(c,'contract','Contract')}
         ${renderAttachmentRow(c,'passport','Client Passport')}
+        ${renderAttachmentRow(c,'kyc','Know Your Client')}
         ${renderAttachmentRow(c,'ourInvoice','Our Invoice')}
-        ${renderAttachmentRow(c,'otherBrokerInvoice', c.role==='retail' ? 'Central Agent Invoice' : 'Retail Broker Invoice')}
-        ${c.type!=='sale' && c.role==='retail' ? `<div class="checklist-item">
+        ${c.role==='central' ? renderAttachmentRow(c,'otherBrokerInvoice','Retail Broker Invoice') : ''}
+        ${renderAttachmentRow(c,'ownerInvoiceToClient',"Owner's Invoice to Client")}
+        ${c.type!=='sale' ? (c.role==='central' ? `
+        <div class="checklist-item">
           <input type="checkbox" data-att="prefListSent" ${c.attachments.prefListSent?'checked':''} id="pref1">
           <label for="pref1">Preference list sent to client</label>
-        </div>` : ''}
-        ${c.type!=='sale' && c.role==='retail' ? `<div class="checklist-item">
-          <input type="checkbox" data-att="prefListSentToCrew" ${c.attachments.prefListSentToCrew?'checked':''} id="pref3">
-          <label for="pref3">Preference list sent to crew</label>
-        </div>` : ''}
-        ${c.type!=='sale' ? `<div class="checklist-item">
+        </div>
+        <div class="checklist-item">
           <input type="checkbox" data-att="prefListReceived" ${c.attachments.prefListReceived?'checked':''} id="pref2">
           <label for="pref2">Preference list received</label>
-        </div>` : ''}
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" data-att="prefListSentToCrew" ${c.attachments.prefListSentToCrew?'checked':''} id="pref3">
+          <label for="pref3">Preference list sent to crew</label>
+        </div>` : `
+        <div class="checklist-item">
+          <input type="checkbox" data-att="prefListSent" ${c.attachments.prefListSent?'checked':''} id="pref1">
+          <label for="pref1">Preference list sent to client</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" data-att="prefListSentToCrew" ${c.attachments.prefListSentToCrew?'checked':''} id="pref3">
+          <label for="pref3">Preference list sent to crew</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" data-att="prefListReceived" ${c.attachments.prefListReceived?'checked':''} id="pref2">
+          <label for="pref2">Preference list received</label>
+        </div>`) : ''}
         ${renderFeedbackChecklistRow(c)}
         <div class="divider-label">Addendums</div>
         ${c.attachments.addendums.map((a,i)=>`
@@ -2425,16 +2556,16 @@ function renderCaseDetail(id){
     <div class="card-head"><h2><span class="eyebrow">Reconciliation</span>&nbsp; Incoming vs Outgoing</h2></div>
     <div class="card-body" style="padding:0;">
       <table>
-        <thead><tr><th>Description</th><th>Reason / Notes</th><th>Due</th><th style="text-align:right;">Incoming (€)</th><th style="text-align:right;">Outgoing (€)</th></tr></thead>
+        <thead><tr><th>Description</th><th>Reason / Notes</th><th>Paid</th><th style="text-align:right;">Incoming (€)</th><th style="text-align:right;">Outgoing (€)</th></tr></thead>
         <tbody>
           ${ledger.rows.length ? ledger.rows.map(r=>`
             <tr>
               <td>${esc(r.description)}${r.isRecon?' <span class="override-flag">· manual</span>':''}</td>
               <td class="muted">${esc(r.reason)||'—'}</td>
-              <td class="mono">${r.due?fmtDate(r.due):'—'}</td>
+              <td class="mono">${r.paidDate?fmtDate(r.paidDate):'—'}</td>
               <td style="text-align:right;" class="amount">${r.direction==='in' ? (r.amount===null||r.amount===undefined?'<span class="muted">not entered</span>':fmtMoney(r.amount)) : '—'}</td>
               <td style="text-align:right;" class="amount">${r.direction==='out' ? (r.amount===null||r.amount===undefined?'<span class="muted">not entered</span>':fmtMoney(r.amount)) : '—'}</td>
-            </tr>`).join('') : `<tr><td colspan="5">${emptyState('Nothing to reconcile yet','Amounts will appear here once the charter rate and payment schedule are filled in.')}</td></tr>`}
+            </tr>`).join('') : `<tr><td colspan="5">${emptyState('Nothing to reconcile yet','Rows appear here once a payment is marked as paid.')}</td></tr>`}
         </tbody>
         ${ledger.rows.length ? `<tfoot>
           <tr>
@@ -2503,13 +2634,17 @@ function renderCasePrintSheet(c, money, unifiedRows, ledger){
   const checklistFlags = [
     ['Contract', !!c.attachments.contract],
     ['Client Passport', !!c.attachments.passport],
+    ['Know Your Client', !!c.attachments.kyc],
     ['Our Invoice', !!c.attachments.ourInvoice],
-    [c.role==='retail'?'Central Agent Invoice':'Retail Broker Invoice', !!c.attachments.otherBrokerInvoice],
-    ['Feedback', !!linkedFeedback],
   ];
+  if(c.role==='central') checklistFlags.push(['Retail Broker Invoice', !!c.attachments.otherBrokerInvoice]);
+  checklistFlags.push(["Owner's Invoice to Client", !!c.attachments.ownerInvoiceToClient], ['Feedback', !!linkedFeedback]);
   if(c.type!=='sale'){
-    if(c.role==='retail') checklistFlags.push(['Pref. list sent (client)', !!c.attachments.prefListSent], ['Pref. list sent (crew)', !!c.attachments.prefListSentToCrew]);
-    checklistFlags.push(['Pref. list received', !!c.attachments.prefListReceived]);
+    if(c.role==='central'){
+      checklistFlags.push(['Pref. list sent (client)', !!c.attachments.prefListSent], ['Pref. list received', !!c.attachments.prefListReceived], ['Pref. list sent (crew)', !!c.attachments.prefListSentToCrew]);
+    }else{
+      checklistFlags.push(['Pref. list sent (client)', !!c.attachments.prefListSent], ['Pref. list sent (crew)', !!c.attachments.prefListSentToCrew], ['Pref. list received', !!c.attachments.prefListReceived]);
+    }
   }
 
   return `
@@ -2615,6 +2750,22 @@ function renderPreferenceListSection(c){
         <button class="btn btn-ghost btn-sm" data-open-preflist="${received.id}">Open / print / send to captain →</button>
       </div>` : ''}
     </div>
+  `;
+}
+
+/* Suggestions for Agency Name / embarkation-disembarkation / cruising area
+   grow on their own — every value ever entered on any charter file becomes
+   a future suggestion, no separate list to maintain. Native <datalist>
+   still lets the person type any new value freely. */
+function renderSharedDatalists(){
+  const uniqueSorted = arr => Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  const agencyNames = uniqueSorted(STATE.cases.flatMap(c=>[c.retailAgencyName, c.caAgencyName]));
+  const locations = uniqueSorted(STATE.cases.flatMap(c=>[c.departureLocation, c.arrivalLocation]));
+  const cruisingAreas = uniqueSorted(STATE.cases.map(c=>c.cruisingArea));
+  return `
+    <datalist id="dl-agency-names">${agencyNames.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
+    <datalist id="dl-locations">${locations.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
+    <datalist id="dl-cruising-areas">${cruisingAreas.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
   `;
 }
 
@@ -2944,7 +3095,7 @@ function wireGlobalEvents(){
           if(!c.paymentOverrides) c.paymentOverrides = {};
           const ov = c.paymentOverrides[key] || {amount:'', note:''};
           if(ov.amount==='' || ov.amount===undefined || ov.amount===null){
-            ov.amount = item.expectedAmount.toFixed(2);
+            ov.amount = fmtMoneyPlain(item.expectedAmount);
           }
           c.paymentOverrides[key] = ov;
         }
@@ -3078,9 +3229,7 @@ function wireGlobalEvents(){
       el.addEventListener('blur', ()=>{
         if(suppressMoneyBlur) return; // this blur was caused by our own re-render removing the element, not a real navigate-away
         if(el.value==='') return;
-        const n = parseFloat(el.value);
-        if(isNaN(n)) return;
-        const formatted = n.toFixed(2);
+        const formatted = fmtMoneyPlain(num(el.value));
         el.value = formatted; // update what's on screen directly — no re-render needed for that part
         if(el.dataset.f){
           c[el.dataset.f] = formatted;
@@ -3129,6 +3278,20 @@ function wireGlobalEvents(){
     const prefBaseUrlInput = document.getElementById('preflist-base-url');
     if(prefBaseUrlInput) prefBaseUrlInput.addEventListener('change', ()=>{
       STATE.preferenceListSync.baseUrl = prefBaseUrlInput.value.trim();
+      persistAndRender();
+    });
+    const picSelect = document.getElementById('person-in-charge-select');
+    if(picSelect) picSelect.addEventListener('change', ()=>{
+      if(picSelect.value === '__add_new__'){
+        const name = window.prompt('Add a new "Person in Charge" (e.g. initials):', '');
+        if(name && name.trim()){
+          const trimmed = name.trim();
+          if(!STATE.staffInitials.includes(trimmed)) STATE.staffInitials.push(trimmed);
+          c.personInCharge = trimmed;
+        }
+      }else{
+        c.personInCharge = picSelect.value;
+      }
       persistAndRender();
     });
     const addBtn = app.querySelector('[data-addendum-add]');
@@ -3264,7 +3427,7 @@ function persistAndRender(){ tryPersistLocal(); render(); }
 
 /* ---------------- export / import ---------------- */
 function exportData(){
-  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials}, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -3293,6 +3456,7 @@ function handleImport(e){
           STATE.preferenceListSync = Object.assign({baseUrl:'', lastSyncedAt:''}, parsed.preferenceListSync);
         }
         STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists||[]);
+        if(Array.isArray(parsed.staffInitials) && parsed.staffInitials.length) STATE.staffInitials = parsed.staffInitials;
         STATE.view = {tab:'cases', caseId:null};
         persistAndRender();
         showToast('Data imported successfully');
