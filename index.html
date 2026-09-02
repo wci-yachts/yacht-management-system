@@ -909,15 +909,25 @@ function buildScheduleItemsCharter(c){
     ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
     : null;
   /* Occasionally a charter is paid in three client-side installments instead
-     of the usual two: an "APA Balance from Client" top-up, restored (↺) and
-     reordered to sit before "APA + Delivery" below. Once it has an actual
-     amount, it closes part or all of whatever shortfall would otherwise be
-     deducted from APA + Delivery — same principle as the Client Deposit ->
-     Client Balance cascade above, just for a third tranche instead of a
-     second. Central-role/owner-side only, same as APA + Delivery itself. */
-  const apaBalanceHidden = !!(c.hiddenPayments && c.hiddenPayments['apa_balance_client']);
-  const apaBalanceClientActual = (!apaBalanceHidden && c.apaBalanceClientAmount!=='' && c.apaBalanceClientAmount!=null) ? num(c.apaBalanceClientAmount) : null;
-  const netApaShortfall = Math.max(0, balanceShortfall - (apaBalanceClientActual || 0));
+     of the usual two: a normal "+ Add extra payment" (direction In, From
+     Client) manually reordered to sit before "APA + Delivery" below. Any
+     such payment's entered amount counts toward what's been collected from
+     the client, closing part or all of whatever shortfall would otherwise
+     be deducted in full from APA + Delivery — same principle as the Client
+     Deposit -> Client Balance cascade above, just for a third tranche. This
+     is unrelated to the separate "APA Balance" preset lines further down,
+     which are an independent, always-end-of-charter settlement. */
+  const orderArr = Array.isArray(c.paymentOrder) ? c.paymentOrder : [];
+  const apaDeliveryOrderIdx = orderArr.indexOf('fixed:owner_apa_delivery');
+  const extraInBeforeApaDelivery = c.customPayments
+    .filter(cp=>{
+      if(cp.direction!=='in') return false;
+      const cpIdx = orderArr.indexOf('custom:'+cp.id);
+      if(cpIdx===-1) return false; // never explicitly reordered -> stays after every fixed row by default
+      return apaDeliveryOrderIdx===-1 ? true : cpIdx < apaDeliveryOrderIdx;
+    })
+    .reduce((sum,cp)=> sum + (cp.amount!=='' ? num(cp.amount) : 0), 0);
+  const netApaShortfall = Math.max(0, balanceShortfall - extraInBeforeApaDelivery);
   const apaCascadeNote = netApaShortfall>0
     ? `Reduced by ${fmtMoney(netApaShortfall)} — the client's payments received so far are still short by that amount`
     : null;
@@ -985,20 +995,6 @@ function buildScheduleItemsCharter(c){
     cascadeNote: !isRetail ? apaCascadeNote : null,
     visible: !isRetail, direction:'out', ledger:true
   });
-  list.push({
-    key:'apa_balance_client', label:'APA Balance from Client', party:'From Client',
-    amount: c.apaBalanceClientAmount!=='' ? num(c.apaBalanceClientAmount) : null,
-    due: balanceDue,
-    note:'Extra installment for charters paid in three tranches instead of two — enter the amount once known',
-    always:true, manualAmount:true, manualField:'apaBalanceClientAmount', direction:'in', ledger:true
-  });
-  list.push({
-    key:'apa_balance_owner', label:'APA Balance to Owner', party:'To Owner',
-    amount: apaBalanceClientActual || 0,
-    due: balanceDue,
-    note:'Forwarded to the owner — APA never carries commission',
-    visible: !isRetail, direction:'out', ledger:true
-  });
   /* If "First to Owner — Charter Start" is removed from this file (the × in
      the schedule table), its amount isn't just dropped — it's folded into
      Balance to Owner instead, since the two ended up being paid together,
@@ -1034,6 +1030,25 @@ function buildScheduleItemsCharter(c){
     cascadeNote: ownerStartHidden
       ? `Includes ${fmtMoney(ownerStartAmount)} for "First to Owner — Charter Start" — both paid together`
       : (ownerStartShortfall!==0 ? `Includes the ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'shortfall':'overpayment'} carried over from "First to Owner — Charter Start" (base amount would be ${fmtMoney(ownerBalanceBase)})` : null),
+    visible: !isRetail, direction:'out', ledger:true
+  });
+  /* Independent of the 3-tranche cascade above and of everything else in
+     the schedule — a final, always-end-of-charter top-up for when the
+     client's APA advance runs short, the mirror image of the APA Refund
+     lines further down (which handle the advance running long instead).
+     Hidden by default like the rest of the end-of-charter tail. */
+  list.push({
+    key:'apa_balance_client', label:'APA Balance from Client', party:'From Client',
+    amount: c.apaBalanceClientAmount!=='' ? num(c.apaBalanceClientAmount) : null,
+    due: c.charterEndDate,
+    note:'If the APA advance runs short at the end of the charter — enter the amount once known',
+    always:true, manualAmount:true, manualField:'apaBalanceClientAmount', direction:'in', ledger:true
+  });
+  list.push({
+    key:'apa_balance_owner', label:'APA Balance to Owner', party:'To Owner',
+    amount: c.apaBalanceClientAmount!=='' ? num(c.apaBalanceClientAmount) : 0,
+    due: c.charterEndDate,
+    note:'Forwarded to the owner — APA never carries commission',
     visible: !isRetail, direction:'out', ledger:true
   });
   list.push({
