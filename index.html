@@ -375,6 +375,7 @@ let STATE = {
   preferenceListSync: {baseUrl:'', lastSyncedAt:''},
   preferenceLists: [],
   staffInitials: ['BB','MZ'], // "Person in Charge" dropdown options, shared — grows via "+ Add new…"
+  yachts: [], // {id, name, length, rig:'sail'|'motor', hull:'monohull'|'catamaran'} — shared fleet database, see renderFleet()
   view: { tab: 'dashboard', caseId: null }
 };
 let nextCaseSeq = 1;
@@ -420,12 +421,15 @@ function tryLoadLocal(){
       if(parsed && Array.isArray(parsed.staffInitials) && parsed.staffInitials.length){
         STATE.staffInitials = parsed.staffInitials;
       }
+      if(parsed && Array.isArray(parsed.yachts)){
+        STATE.yachts = normalizeYachts(parsed.yachts);
+      }
     }
   }catch(e){ /* storage unavailable — session-only mode */ }
 }
 function persistLocalSnapshot(){
   try{
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync,preferenceLists:STATE.preferenceLists,staffInitials:STATE.staffInitials}));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({cases:STATE.cases,nextCaseSeq,feedback:STATE.feedback,feedbackSync:STATE.feedbackSync,preferenceListSync:STATE.preferenceListSync,preferenceLists:STATE.preferenceLists,staffInitials:STATE.staffInitials,yachts:STATE.yachts}));
   }catch(e){ /* ignore — export/import remains the reliable path */ }
 }
 function tryPersistLocal(){
@@ -447,7 +451,7 @@ async function pushToServer(){
        rules, so it must not end up stored in the shared workspace row where
        any logged-in teammate could read it back out. */
     const feedbackSyncToShare = Object.assign({}, STATE.feedbackSync, {secretKey:''});
-    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials};
+    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials, yachts:STATE.yachts};
     const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
     if(error) throw error;
   }catch(e){
@@ -480,6 +484,9 @@ async function loadFromServer(){
     }
     if(parsed && Array.isArray(parsed.staffInitials) && parsed.staffInitials.length){
       STATE.staffInitials = parsed.staffInitials;
+    }
+    if(parsed && Array.isArray(parsed.yachts)){
+      STATE.yachts = normalizeYachts(parsed.yachts);
     }
     persistLocalSnapshot(); // keep the offline copy on this device fresh with whatever just came from the server
     return true;
@@ -636,9 +643,7 @@ function newCase(fileType){
     type, // 'charter' | 'sale'
     caseNumber: '',
     clientName: '',
-    yachtName: '',
-    yachtType: '', // 'sail' | 'motor' | 'catamaran' — used by Statistics → Charts
-    yachtLength: '', // metres, free text — used by Statistics → Charts
+    yachtName: '', // looked up against STATE.yachts (Fleet database, see findYacht()) for length/rig/hull — no separate copy kept on the case
     personInCharge: '',
     role: 'retail', // 'retail' | 'central'
     status: 'negotiation', // 'negotiation'|'option'|'contract'|'confirmed'|'closed' — see getEffectivePhase() for the automatic in_progress/completed derivation
@@ -773,6 +778,14 @@ function normalizePreferenceList(raw){
 }
 function normalizePreferenceLists(list){
   return (Array.isArray(list)?list:[]).map(normalizePreferenceList);
+}
+function normalizeYachts(list){
+  return (Array.isArray(list)?list:[]).map(y=> Object.assign({name:'', length:'', rig:'', hull:''}, y, {id: y.id || uid()}));
+}
+function findYacht(name){
+  const norm = (name||'').trim().toLowerCase();
+  if(!norm) return null;
+  return STATE.yachts.find(y=>(y.name||'').trim().toLowerCase()===norm) || null;
 }
 function getPreferenceList(id){ return STATE.preferenceLists.find(p=>p.id===id); }
 function feedbackAvgRating(f){
@@ -1318,6 +1331,7 @@ function renderTopbar(){
     ['calendar','Calendar'],
     ['feedback','Feedback'],
     ['preferences','Preferences'],
+    ['fleet','Fleet'],
     ['statistics','Statistics'],
   ];
   return `
@@ -1340,6 +1354,7 @@ function renderView(){
   if(STATE.view.tab==='feedback') return STATE.view.feedbackId ? renderFeedbackDetail(STATE.view.feedbackId) : renderFeedbackList();
   if(STATE.view.tab==='preferences') return STATE.view.prefListId ? renderPreferenceListDetail(STATE.view.prefListId) : renderPreferenceListsPage();
   if(STATE.view.tab==='calendar') return renderCalendar();
+  if(STATE.view.tab==='fleet') return renderFleet();
   if(STATE.view.tab==='statistics') return renderStatistics();
   return '';
 }
@@ -1687,6 +1702,60 @@ function yearFromCaseNumber(caseNumber){
   const m = (caseNumber||'').trim().match(/(\d{4})\s*$/);
   return m ? m[1] : null;
 }
+/* ---- Fleet database ----
+   A small shared list of yachts (name, length, rig, hull) so their specs
+   only need to be entered once — Charter/Sale files just reference a
+   yacht by name (findYacht(), matched case-insensitively) instead of
+   re-typing its length/type on every file. Also feeds the Statistics →
+   Charts "Yacht Size Chosen" breakdown. */
+function renderFleet(){
+  const yachts = STATE.yachts.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+  const usageCount = name => {
+    const norm = (name||'').trim().toLowerCase();
+    if(!norm) return 0;
+    return STATE.cases.filter(c=>(c.yachtName||'').trim().toLowerCase()===norm).length;
+  };
+  return `
+    <div class="search-bar no-print">
+      <span class="muted" style="font-size:12px;">${yachts.length} yacht${yachts.length===1?'':'s'} in the fleet database</span>
+      <button class="btn btn-brass btn-sm" data-yacht-add style="margin-left:auto;">+ Add Yacht</button>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        ${yachts.length ? `
+        <table>
+          <thead><tr><th>Name</th><th>Length (m)</th><th>Rig</th><th>Hull</th><th style="text-align:right;">Charter/Sale Files</th><th class="no-print"></th></tr></thead>
+          <tbody>
+            ${yachts.map(y=>{
+              const idx = STATE.yachts.indexOf(y);
+              return `<tr>
+                <td><input type="text" data-yacht="name" data-yacht-idx="${idx}" value="${esc(y.name)}" placeholder="e.g. M/Y Serenity"></td>
+                <td><input type="text" inputmode="decimal" data-yacht="length" data-yacht-idx="${idx}" value="${esc(y.length)}" placeholder="e.g. 24" style="width:90px;"></td>
+                <td>
+                  <select data-yacht="rig" data-yacht-idx="${idx}">
+                    <option value="">— Select —</option>
+                    <option value="sail" ${y.rig==='sail'?'selected':''}>Sail (S/Y)</option>
+                    <option value="motor" ${y.rig==='motor'?'selected':''}>Motor (M/Y)</option>
+                  </select>
+                </td>
+                <td>
+                  <select data-yacht="hull" data-yacht-idx="${idx}">
+                    <option value="">— Select —</option>
+                    <option value="monohull" ${y.hull==='monohull'?'selected':''}>Monohull</option>
+                    <option value="catamaran" ${y.hull==='catamaran'?'selected':''}>Catamaran</option>
+                  </select>
+                </td>
+                <td style="text-align:right;" class="amount">${usageCount(y.name)}</td>
+                <td class="no-print"><button class="attach-remove" data-yacht-remove="${idx}" title="Remove yacht">×</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : emptyState('No yachts yet','Add the yachts you charter or sell most often — their length and type will auto-fill (by matching Yacht Name) on every charter/sale file that uses them, and feed the Statistics → Charts fleet breakdown.')}
+      </div>
+    </div>
+  `;
+}
+
 function renderStatistics(){
   const groups = {}; // year -> rows[]
   let noYear = [];
@@ -1937,15 +2006,24 @@ function yachtLengthBucketLabel(len){
   const b = YACHT_LENGTH_BUCKETS.find(b=>len<b.max);
   return b ? b.label : YACHT_LENGTH_BUCKETS[YACHT_LENGTH_BUCKETS.length-1].label;
 }
+/* Rig (sail/motor) and hull (monohull/catamaran) are independent axes in
+   the Fleet database (a catamaran can be sail or motor), so the chart
+   breaks a chosen yacht into one of 4 combined categories rather than
+   the 3 flattened "sail/motor/catamaran" buckets originally sketched —
+   more accurate, and still shows the sail/motor/catamaran split the
+   stats were meant to surface. */
+const YACHT_SIZE_CATEGORIES = ['Sail Monohull','Motor Monohull','Sail Catamaran','Motor Catamaran'];
 function yachtSizeTypeMatrix(cases){
   const buckets = YACHT_LENGTH_BUCKETS.map(b=>b.label);
-  const matrix = buckets.map(()=> ({sail:0, motor:0, catamaran:0, other:0}));
+  const matrix = buckets.map(()=> ({'Sail Monohull':0,'Motor Monohull':0,'Sail Catamaran':0,'Motor Catamaran':0}));
   cases.forEach(c=>{
-    const len = c.yachtLength!=='' ? num(c.yachtLength) : 0;
+    const y = findYacht(c.yachtName);
+    if(!y) return;
+    const len = y.length!=='' ? num(y.length) : 0;
     if(!len || len<=0) return;
-    const bIdx = buckets.indexOf(yachtLengthBucketLabel(len));
-    const t = ['sail','motor','catamaran'].includes(c.yachtType) ? c.yachtType : 'other';
-    matrix[bIdx][t]++;
+    if(!y.rig || !y.hull) return;
+    const category = (y.rig==='sail'?'Sail':'Motor') + ' ' + (y.hull==='catamaran'?'Catamaran':'Monohull');
+    matrix[buckets.indexOf(yachtLengthBucketLabel(len))][category]++;
   });
   return {buckets, matrix};
 }
@@ -2036,7 +2114,7 @@ function renderStatsCharts(){
     </div>
     <div class="row c2">
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Popularity</span>&nbsp; Most Popular Cruising Areas</h2></div><div class="card-body"><div style="height:${areaChartHeight}px;"><canvas id="chart-areas"></canvas></div></div></div>
-      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Yacht Size Chosen (Sail / Motor / Catamaran)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-yacht-size"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Yacht Size Chosen (Rig &amp; Hull)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-yacht-size"></canvas></div></div></div>
     </div>
     <div class="row c2">
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Clients</span>&nbsp; Nationality</h2></div><div class="card-body"><div style="height:280px;"><canvas id="chart-nationality"></canvas></div></div></div>
@@ -2090,11 +2168,9 @@ function initStatsCharts(){
     type:'bar',
     data:{
       labels: d.buckets,
-      datasets:[
-        {label:'Sail', data:d.matrix.map(m=>m.sail), backgroundColor: palette[0]},
-        {label:'Motor', data:d.matrix.map(m=>m.motor), backgroundColor: palette[3]},
-        {label:'Catamaran', data:d.matrix.map(m=>m.catamaran), backgroundColor: palette[4]},
-      ]
+      datasets: YACHT_SIZE_CATEGORIES.map((cat,i)=>({
+        label: cat, data: d.matrix.map(m=>m[cat]), backgroundColor: palette[i]
+      }))
     },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true}, y:Object.assign({stacked:true}, countTicks)} }
   });
@@ -2711,20 +2787,27 @@ function renderCaseDetail(id){
       <div class="row c3">
         <div class="field"><label class="field-label">Case Number</label><input type="text" data-f="caseNumber" value="${esc(c.caseNumber)}" placeholder="000-YYYY"></div>
         <div class="field"><label class="field-label">Client Name</label><input type="text" data-f="clientName" value="${esc(c.clientName)}" placeholder="e.g. J. Harrington"></div>
-        <div class="field"><label class="field-label">Yacht Name</label><input type="text" data-f="yachtName" value="${esc(c.yachtName)}" placeholder="e.g. M/Y Serenity"></div>
+        <div class="field"><label class="field-label">Yacht Name</label><input type="text" data-f="yachtName" list="dl-yacht-names" value="${esc(c.yachtName)}" placeholder="e.g. M/Y Serenity"></div>
       </div>
-      <div class="row c3">
-        <div class="field">
-          <label class="field-label">Yacht Type</label>
-          <select data-f="yachtType">
-            <option value="">— Select —</option>
-            <option value="sail" ${c.yachtType==='sail'?'selected':''}>Sail</option>
-            <option value="motor" ${c.yachtType==='motor'?'selected':''}>Motor</option>
-            <option value="catamaran" ${c.yachtType==='catamaran'?'selected':''}>Catamaran</option>
-          </select>
-        </div>
-        <div class="field"><label class="field-label">Yacht Length (m)</label><input type="text" inputmode="decimal" data-f="yachtLength" value="${esc(c.yachtLength)}" placeholder="e.g. 24"></div>
-      </div>
+      ${(() => {
+        const matched = findYacht(c.yachtName);
+        if(matched){
+          const specs = [
+            matched.length ? matched.length+'m' : null,
+            matched.rig==='sail' ? 'Sail (S/Y)' : matched.rig==='motor' ? 'Motor (M/Y)' : null,
+            matched.hull==='monohull' ? 'Monohull' : matched.hull==='catamaran' ? 'Catamaran' : null,
+          ].filter(Boolean);
+          return `<div class="field-hint" style="margin:-8px 0 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span>⚓ ${specs.length ? esc(specs.join(' · ')) : 'In the Fleet database — length/type not set yet'}</span>
+            <button type="button" class="btn btn-ghost btn-sm no-print" data-goto-fleet>Edit in Fleet →</button>
+          </div>`;
+        }
+        if(!(c.yachtName||'').trim()) return '';
+        return `<div class="field-hint" style="margin:-8px 0 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span>Not in the Fleet database yet — length/type won't count toward Statistics → Charts.</span>
+          <button type="button" class="btn btn-ghost btn-sm no-print" data-add-to-fleet="${c.id}">+ Add "${esc(c.yachtName)}" to Fleet</button>
+        </div>`;
+      })()}
       <div class="row c3">
         <div class="field">
           <label class="field-label">Person in Charge</label>
@@ -3162,10 +3245,12 @@ function renderSharedDatalists(){
   const agencyNames = uniqueSorted(STATE.cases.flatMap(c=>[c.retailAgencyName, c.caAgencyName]));
   const locations = uniqueSorted(STATE.cases.flatMap(c=>[c.departureLocation, c.arrivalLocation]));
   const cruisingAreas = uniqueSorted(STATE.cases.map(c=>c.cruisingArea));
+  const yachtNames = uniqueSorted(STATE.yachts.map(y=>y.name));
   return `
     <datalist id="dl-agency-names">${agencyNames.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
     <datalist id="dl-locations">${locations.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
     <datalist id="dl-cruising-areas">${cruisingAreas.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
+    <datalist id="dl-yacht-names">${yachtNames.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
   `;
 }
 
@@ -3449,6 +3534,34 @@ function wireGlobalEvents(){
     STATE.view.chartsYear = chartsYearSelect.value;
     render();
   });
+  const addYachtBtn = app.querySelector('[data-yacht-add]');
+  if(addYachtBtn) addYachtBtn.addEventListener('click', ()=>{
+    STATE.yachts.push({id:uid(), name:'', length:'', rig:'', hull:''});
+    persistAndRender();
+  });
+  app.querySelectorAll('[data-yacht-remove]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.yachts.splice(+el.dataset.yachtRemove, 1);
+    persistAndRender();
+  }));
+  app.querySelectorAll('[data-yacht]').forEach(el=>{
+    el.addEventListener(liveEventFor(el), ()=>{
+      STATE.yachts[+el.dataset.yachtIdx][el.dataset.yacht] = el.value;
+      if(el.tagName==='SELECT') persistAndRender();
+      else persistOnly();
+    });
+  });
+  app.querySelectorAll('[data-goto-fleet]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view = {tab:'fleet'};
+    render();
+  }));
+  app.querySelectorAll('[data-add-to-fleet]').forEach(el=>el.addEventListener('click', ()=>{
+    const cs = getCase(el.dataset.addToFleet);
+    const name = cs ? (cs.yachtName||'').trim() : '';
+    if(!name) return;
+    STATE.yachts.push({id:uid(), name, length:'', rig:'', hull:''});
+    STATE.view = {tab:'fleet'};
+    persistAndRender();
+  }));
   app.querySelectorAll('[data-sort-field]').forEach(el=>el.addEventListener('click', ()=>{
     const field = el.dataset.sortField;
     if(STATE.view.sortField === field){
@@ -3836,7 +3949,7 @@ function persistAndRender(){ tryPersistLocal(); render(); }
 
 /* ---------------- export / import ---------------- */
 function exportData(){
-  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:STATE.feedbackSync, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials, yachts:STATE.yachts}, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -3866,6 +3979,7 @@ function handleImport(e){
         }
         STATE.preferenceLists = normalizePreferenceLists(parsed.preferenceLists||[]);
         if(Array.isArray(parsed.staffInitials) && parsed.staffInitials.length) STATE.staffInitials = parsed.staffInitials;
+        if(Array.isArray(parsed.yachts)) STATE.yachts = normalizeYachts(parsed.yachts);
         STATE.view = {tab:'cases', caseId:null};
         persistAndRender();
         showToast('Data imported successfully');

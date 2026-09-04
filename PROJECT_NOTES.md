@@ -24,6 +24,8 @@ più persone).
   - Checklist allegati, note libere
 - **Calendar**: vista mensile (due mesi affiancati) con le pratiche come strisce
   colorate per barca
+- **Fleet**: mini database condiviso degli yacht (`STATE.yachts` — nome,
+  lunghezza, rig sail/motor, hull monohull/catamaran), vedi sotto
 - **Feedback**: raccolta feedback clienti, collegabile alle pratiche, con
   importazione CSV e sincronizzazione da Supabase (vedi sotto)
 - **Statistics**: diviso in schede (`STATE.view.statsTab`) — Overview (totali e
@@ -54,11 +56,15 @@ pratiche **Charter** (le Sale non hanno cruising area / date charter).
 - **Most Popular Cruising Areas**: barre orizzontali, conteggio per
   `c.cruisingArea`, altezza del grafico proporzionale al numero di aree
   per restare leggibile.
-- **Yacht Size Chosen**: nuovi campi pratica `c.yachtType`
-  ('sail'|'motor'|'catamaran') e `c.yachtLength` (metri, testo libero) —
-  aggiunti in General Information subito dopo Yacht Name, per Charter e
-  Sale. Barre impilate per fascia di lunghezza (`YACHT_LENGTH_BUCKETS`),
-  una serie per tipo.
+- **Yacht Size Chosen**: lunghezza/rig/hull vengono da `STATE.yachts`
+  (Fleet, vedi sotto) via `findYacht(c.yachtName)` — nessun campo
+  duplicato sulla pratica. Barre impilate per fascia di lunghezza
+  (`YACHT_LENGTH_BUCKETS`), 4 serie combinate rig×hull
+  (`YACHT_SIZE_CATEGORIES`: Sail/Motor Monohull, Sail/Motor Catamaran —
+  un catamarano può essere a vela o a motore, quindi le due dimensioni
+  sono indipendenti). Una pratica il cui yacht non è in Fleet, o è in
+  Fleet ma senza lunghezza/rig/hull compilati, non compare in questo
+  grafico.
 - **Nationality**: torta sulle top 7 nazionalità per conteggio
   (`c.clientNationality`), il resto raggruppato in "Other"
   (`nationalityCounts()`).
@@ -66,6 +72,26 @@ pratiche **Charter** (le Sale non hanno cruising area / date charter).
   mese (stesse top nazionalità della torta sopra, stesso raggruppamento
   "Other") — la prima usa i mesi del charter (come Most Chartered
   Periods), la seconda il mese di firma contratto (come Booking Trend).
+
+### Fleet (database yacht)
+`STATE.yachts` è un elenco condiviso — stesso pattern di
+`STATE.staffInitials` — di `{id, name, length, rig, hull}`
+(`rig`: 'sail'|'motor', `hull`: 'monohull'|'catamaran'), gestito dalla
+nuova scheda **Fleet** (tabella con righe editabili in linea, "+ Add
+Yacht", × per rimuovere). Serve a non dover reinserire lunghezza/tipo ad
+ogni pratica che usa la stessa barca.
+
+**Collegamento con le pratiche**: nessun campo duplicato — `c.yachtName`
+resta un campo di testo libero (con datalist di suggerimento
+`dl-yacht-names`, popolata dai nomi in Fleet), e `findYacht(c.yachtName)`
+(match case-insensitive) recupera lunghezza/rig/hull al volo ovunque
+servano (General Information mostra un riepilogo tipo "32m · Motor (M/Y)
+· Monohull" con un link "Edit in Fleet →"; se il nome non è ancora in
+Fleet, mostra invece "+ Add … to Fleet" che crea la riga e apre la
+scheda Fleet per completarla). Rinominare uno yacht in Fleet, o
+correggerne lunghezza/tipo, si ripercuote automaticamente su tutte le
+pratiche che lo referenziano con lo stesso nome — non c'è nulla da
+aggiornare pratica per pratica.
 
 ## Modalità multiutente (Supabase)
 In cima allo script ci sono queste costanti da configurare:
