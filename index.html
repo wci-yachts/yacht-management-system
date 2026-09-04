@@ -1665,8 +1665,12 @@ function renderCalendar(){
   const yachtFilter = STATE.view.calYachtFilter || '';
   const todayStr = dateStr(now);
 
+  /* Every yacht that appears on any file, closed included — the filter
+     below (and the calendar itself) doesn't exclude closed files either,
+     so a yacht whose only pratica is already closed must still be
+     selectable here or it becomes impossible to isolate on the calendar. */
   const activeYachtNames = Array.from(new Set(
-    STATE.cases.filter(c => getEffectivePhase(c)!=='closed' && c.yachtName).map(c=>c.yachtName)
+    STATE.cases.filter(c => c.yachtName).map(c=>c.yachtName)
   )).sort();
 
   const cases = STATE.cases.filter(c=> c.charterStartDate && c.charterEndDate && (!yachtFilter || c.yachtName===yachtFilter));
@@ -1708,6 +1712,15 @@ function yearFromCaseNumber(caseNumber){
    yacht by name (findYacht(), matched case-insensitively) instead of
    re-typing its length/type on every file. Also feeds the Statistics →
    Charts "Yacht Size Chosen" breakdown. */
+function yachtNamesMissingFromFleet(){
+  const known = new Set(STATE.yachts.map(y=>(y.name||'').trim().toLowerCase()).filter(Boolean));
+  const found = new Set();
+  STATE.cases.forEach(c=>{
+    const name = (c.yachtName||'').trim();
+    if(name && !known.has(name.toLowerCase())) found.add(name);
+  });
+  return Array.from(found).sort();
+}
 function renderFleet(){
   const yachts = STATE.yachts.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||''));
   const usageCount = name => {
@@ -1715,10 +1728,12 @@ function renderFleet(){
     if(!norm) return 0;
     return STATE.cases.filter(c=>(c.yachtName||'').trim().toLowerCase()===norm).length;
   };
+  const missing = yachtNamesMissingFromFleet();
   return `
     <div class="search-bar no-print">
       <span class="muted" style="font-size:12px;">${yachts.length} yacht${yachts.length===1?'':'s'} in the fleet database</span>
-      <button class="btn btn-brass btn-sm" data-yacht-add style="margin-left:auto;">+ Add Yacht</button>
+      ${missing.length ? `<button class="btn btn-ghost btn-sm" data-yacht-import-missing style="margin-left:auto;">Import ${missing.length} yacht name${missing.length===1?'':'s'} from Charter Files →</button>` : ''}
+      <button class="btn btn-brass btn-sm" data-yacht-add style="${missing.length?'':'margin-left:auto;'}">+ Add Yacht</button>
     </div>
     <div class="card">
       <div class="card-body" style="padding:0;">
@@ -3538,6 +3553,13 @@ function wireGlobalEvents(){
   if(addYachtBtn) addYachtBtn.addEventListener('click', ()=>{
     STATE.yachts.push({id:uid(), name:'', length:'', rig:'', hull:''});
     persistAndRender();
+  });
+  const importMissingBtn = app.querySelector('[data-yacht-import-missing]');
+  if(importMissingBtn) importMissingBtn.addEventListener('click', ()=>{
+    const missing = yachtNamesMissingFromFleet();
+    missing.forEach(name=> STATE.yachts.push({id:uid(), name, length:'', rig:'', hull:''}));
+    persistAndRender();
+    showToast(`Imported ${missing.length} yacht name${missing.length===1?'':'s'} — fill in length/rig/hull for each below.`);
   });
   app.querySelectorAll('[data-yacht-remove]').forEach(el=>el.addEventListener('click', ()=>{
     STATE.yachts.splice(+el.dataset.yachtRemove, 1);
