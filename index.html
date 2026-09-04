@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
 :root{
   --navy-950:#071522;
@@ -636,6 +637,8 @@ function newCase(fileType){
     caseNumber: '',
     clientName: '',
     yachtName: '',
+    yachtType: '', // 'sail' | 'motor' | 'catamaran' — used by Statistics → Charts
+    yachtLength: '', // metres, free text — used by Statistics → Charts
     personInCharge: '',
     role: 'retail', // 'retail' | 'central'
     status: 'negotiation', // 'negotiation'|'option'|'contract'|'confirmed'|'closed' — see getEffectivePhase() for the automatic in_progress/completed derivation
@@ -1304,6 +1307,8 @@ function render(){
     <main>${renderView()}</main>
   `;
   wireGlobalEvents();
+  if(STATE.view.tab==='statistics' && STATE.view.statsTab==='charts') initStatsCharts();
+  else destroyStatsCharts();
 }
 
 function renderTopbar(){
@@ -1760,6 +1765,7 @@ function renderStatistics(){
   const statsTabs = [
     ['overview','Overview'],
     ['trends','Booking & Charter Trends'],
+    ['charts','Charts'],
     ['cashflow','Cash Flow'],
     ['byyear','By Year'],
   ];
@@ -1772,6 +1778,8 @@ function renderStatistics(){
   let body;
   if(statsTab==='trends'){
     body = renderStatsTrends();
+  }else if(statsTab==='charts'){
+    body = renderStatsCharts();
   }else if(statsTab==='cashflow'){
     body = renderCashFlowSection();
   }else if(statsTab==='byyear'){
@@ -1856,6 +1864,262 @@ function renderStatsTrends(){
       </div>
     </div>
   `;
+}
+
+/* ---- Statistics → Charts ----
+   All charts here are charter files only (c.type!=='sale' — sale files
+   don't carry charter dates/cruising area) and respect a single shared
+   year selector (STATE.view.chartsYear), matching the same case-number-
+   derived "year" used by the "By Year" tab so the file-set stays
+   consistent across Statistics. Booking/charter month buckets use just
+   the month-of-year component of the relevant date (not its specific
+   year), since the point is to see the seasonal pattern, not a single
+   calendar year's literal timeline. */
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const YACHT_LENGTH_BUCKETS = [
+  {label:'<15m', max:15},
+  {label:'15–20m', max:20},
+  {label:'20–25m', max:25},
+  {label:'25–30m', max:30},
+  {label:'30–40m', max:40},
+  {label:'40m+', max:Infinity},
+];
+function statsChartsYearOptions(){
+  return Array.from(new Set(STATE.cases.map(c=>yearFromCaseNumber(c.caseNumber)).filter(Boolean))).sort((a,b)=>b.localeCompare(a));
+}
+function statsChartsFilteredCases(year){
+  const charterCases = STATE.cases.filter(c=>c.type!=='sale');
+  if(!year || year==='all') return charterCases;
+  return charterCases.filter(c=>yearFromCaseNumber(c.caseNumber)===year);
+}
+/* Every calendar month touched by [startStr, endStr], reduced to a 0-11
+   month-of-year index (a charter crossing New Year's still counts once
+   in December and once in January). */
+function monthsOverlapped(startStr, endStr){
+  if(!startStr || !endStr) return [];
+  const start = new Date(startStr+'T00:00:00');
+  const end = new Date(endStr+'T00:00:00');
+  if(isNaN(start) || isNaN(end) || end<start) return [];
+  const months = new Set();
+  let y = start.getFullYear(), m = start.getMonth();
+  const endY = end.getFullYear(), endM = end.getMonth();
+  let guard = 0;
+  while((y<endY || (y===endY && m<=endM)) && guard<240){
+    months.add(m);
+    m++; if(m>11){ m=0; y++; }
+    guard++;
+  }
+  return Array.from(months);
+}
+function monthlyBookingCounts(cases){
+  const counts = new Array(12).fill(0);
+  cases.forEach(c=>{
+    if(!c.contractSignDate) return;
+    counts[new Date(c.contractSignDate+'T00:00:00').getMonth()]++;
+  });
+  return counts;
+}
+function monthlyCharterCounts(cases){
+  const counts = new Array(12).fill(0);
+  cases.forEach(c=> monthsOverlapped(c.charterStartDate, c.charterEndDate).forEach(m=> counts[m]++));
+  return counts;
+}
+function cruisingAreaCounts(cases){
+  const counts = {};
+  cases.forEach(c=>{
+    const area = (c.cruisingArea||'').trim();
+    if(!area) return;
+    counts[area] = (counts[area]||0)+1;
+  });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+}
+function yachtLengthBucketLabel(len){
+  const b = YACHT_LENGTH_BUCKETS.find(b=>len<b.max);
+  return b ? b.label : YACHT_LENGTH_BUCKETS[YACHT_LENGTH_BUCKETS.length-1].label;
+}
+function yachtSizeTypeMatrix(cases){
+  const buckets = YACHT_LENGTH_BUCKETS.map(b=>b.label);
+  const matrix = buckets.map(()=> ({sail:0, motor:0, catamaran:0, other:0}));
+  cases.forEach(c=>{
+    const len = c.yachtLength!=='' ? num(c.yachtLength) : 0;
+    if(!len || len<=0) return;
+    const bIdx = buckets.indexOf(yachtLengthBucketLabel(len));
+    const t = ['sail','motor','catamaran'].includes(c.yachtType) ? c.yachtType : 'other';
+    matrix[bIdx][t]++;
+  });
+  return {buckets, matrix};
+}
+/* Top N nationalities by count, with everything past that lumped into
+   "Other" so a pie/stacked chart stays legible even with many distinct
+   nationalities entered over the years. */
+function nationalityCounts(cases, topN){
+  const counts = {};
+  cases.forEach(c=>{
+    const n = (c.clientNationality||'').trim();
+    if(!n) return;
+    counts[n] = (counts[n]||0)+1;
+  });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if(sorted.length<=topN) return sorted;
+  const top = sorted.slice(0,topN);
+  const otherTotal = sorted.slice(topN).reduce((s,[,v])=>s+v,0);
+  if(otherTotal>0) top.push(['Other', otherTotal]);
+  return top;
+}
+/* month(0-11) -> {nationality: count}, bucketing anything outside
+   knownNationalities into "Other" — mode 'booking' uses the contract sign
+   month (single bucket per file), mode 'charter' uses every month the
+   charter itself overlaps. */
+function nationalityByMonthMatrix(cases, mode, knownNationalities){
+  const matrix = MONTH_LABELS.map(()=> ({}));
+  const bucketFor = nat => knownNationalities.includes(nat) ? nat : 'Other';
+  cases.forEach(c=>{
+    const nat = (c.clientNationality||'').trim();
+    if(!nat) return;
+    const bucket = bucketFor(nat);
+    if(mode==='booking'){
+      if(!c.contractSignDate) return;
+      const m = new Date(c.contractSignDate+'T00:00:00').getMonth();
+      matrix[m][bucket] = (matrix[m][bucket]||0)+1;
+    }else{
+      monthsOverlapped(c.charterStartDate, c.charterEndDate).forEach(m=>{
+        matrix[m][bucket] = (matrix[m][bucket]||0)+1;
+      });
+    }
+  });
+  return matrix;
+}
+
+function renderStatsCharts(){
+  const yearOptions = statsChartsYearOptions();
+  const selectedYear = (STATE.view.chartsYear==='all' || yearOptions.includes(STATE.view.chartsYear)) ? STATE.view.chartsYear : (yearOptions[0] || 'all');
+  const charterFileCount = STATE.cases.filter(c=>c.type!=='sale').length;
+
+  if(charterFileCount===0){
+    STATE.view._chartData = null;
+    return `<div class="card"><div class="card-body">${emptyState('No charter files yet','Charts will appear here once you have charter files with dates, cruising area, yacht type/length and client nationality filled in.')}</div></div>`;
+  }
+
+  const cases = statsChartsFilteredCases(selectedYear);
+  const yearSelect = `
+    <div class="no-print" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <label class="field-label" style="margin:0;">Year</label>
+      <select data-charts-year style="width:auto;">
+        <option value="all" ${selectedYear==='all'?'selected':''}>All years</option>
+        ${yearOptions.map(y=>`<option value="${esc(y)}" ${selectedYear===y?'selected':''}>${esc(y)}</option>`).join('')}
+      </select>
+      <span class="muted" style="font-size:12px;">${cases.length} charter file${cases.length===1?'':'s'}</span>
+    </div>`;
+
+  if(cases.length===0){
+    STATE.view._chartData = null;
+    return yearSelect + `<div class="card"><div class="card-body">${emptyState('No charter files for this year','Pick a different year, or "All years".')}</div></div>`;
+  }
+
+  const natCounts = nationalityCounts(cases, 7);
+  const natLabels = natCounts.map(([n])=>n);
+  STATE.view._chartData = {
+    bookingCounts: monthlyBookingCounts(cases),
+    charterCounts: monthlyCharterCounts(cases),
+    areaCounts: cruisingAreaCounts(cases),
+    ...yachtSizeTypeMatrix(cases),
+    natCounts,
+    natByCharterMonth: nationalityByMonthMatrix(cases, 'charter', natLabels),
+    natByBookingMonth: nationalityByMonthMatrix(cases, 'booking', natLabels),
+  };
+  const areaChartHeight = Math.max(220, STATE.view._chartData.areaCounts.length*32);
+
+  return yearSelect + `
+    <div class="row c2">
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Trend</span>&nbsp; Booking Trend (by month)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-booking-trend"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Trend</span>&nbsp; Most Chartered Periods (by month)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-charter-trend"></canvas></div></div></div>
+    </div>
+    <div class="row c2">
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Popularity</span>&nbsp; Most Popular Cruising Areas</h2></div><div class="card-body"><div style="height:${areaChartHeight}px;"><canvas id="chart-areas"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Yacht Size Chosen (Sail / Motor / Catamaran)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-yacht-size"></canvas></div></div></div>
+    </div>
+    <div class="row c2">
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Clients</span>&nbsp; Nationality</h2></div><div class="card-body"><div style="height:280px;"><canvas id="chart-nationality"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Clients</span>&nbsp; Nationality by Charter Month</h2></div><div class="card-body"><div style="height:280px;"><canvas id="chart-nat-charter-month"></canvas></div></div></div>
+    </div>
+    <div class="row c2">
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Clients</span>&nbsp; Nationality by Booking Month</h2></div><div class="card-body"><div style="height:280px;"><canvas id="chart-nat-booking-month"></canvas></div></div></div>
+    </div>
+  `;
+}
+
+/* Chart.js instances are torn down and rebuilt on every render of the
+   Charts tab (cheap at this data scale) rather than diffed, since the
+   whole tab's HTML — including every <canvas>, which Chart.js binds to
+   physically — is already being replaced by render()'s innerHTML swap. */
+let statsChartInstances = {};
+function destroyStatsCharts(){
+  Object.values(statsChartInstances).forEach(ch=>{ if(ch) try{ ch.destroy(); }catch(e){} });
+  statsChartInstances = {};
+}
+function initStatsCharts(){
+  destroyStatsCharts();
+  const d = STATE.view._chartData;
+  if(!d || typeof Chart==='undefined') return;
+  const palette = YACHT_COLOR_PALETTE;
+  const countTicks = {beginAtZero:true, ticks:{precision:0}};
+
+  const bookingEl = document.getElementById('chart-booking-trend');
+  if(bookingEl) statsChartInstances.booking = new Chart(bookingEl, {
+    type:'bar',
+    data:{ labels: MONTH_LABELS, datasets:[{label:'Contracts signed', data:d.bookingCounts, backgroundColor: palette[0]}] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:countTicks} }
+  });
+
+  const charterEl = document.getElementById('chart-charter-trend');
+  if(charterEl) statsChartInstances.charter = new Chart(charterEl, {
+    type:'bar',
+    data:{ labels: MONTH_LABELS, datasets:[{label:'Charters underway', data:d.charterCounts, backgroundColor: palette[1]}] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:countTicks} }
+  });
+
+  const areasEl = document.getElementById('chart-areas');
+  if(areasEl) statsChartInstances.areas = new Chart(areasEl, {
+    type:'bar',
+    data:{ labels: d.areaCounts.map(([a])=>a), datasets:[{label:'Charters', data:d.areaCounts.map(([,v])=>v), backgroundColor: palette[2]}] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:countTicks} }
+  });
+
+  const sizeEl = document.getElementById('chart-yacht-size');
+  if(sizeEl) statsChartInstances.size = new Chart(sizeEl, {
+    type:'bar',
+    data:{
+      labels: d.buckets,
+      datasets:[
+        {label:'Sail', data:d.matrix.map(m=>m.sail), backgroundColor: palette[0]},
+        {label:'Motor', data:d.matrix.map(m=>m.motor), backgroundColor: palette[3]},
+        {label:'Catamaran', data:d.matrix.map(m=>m.catamaran), backgroundColor: palette[4]},
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true}, y:Object.assign({stacked:true}, countTicks)} }
+  });
+
+  const natEl = document.getElementById('chart-nationality');
+  if(natEl) statsChartInstances.nat = new Chart(natEl, {
+    type:'pie',
+    data:{ labels: d.natCounts.map(([n])=>n), datasets:[{data:d.natCounts.map(([,v])=>v), backgroundColor: d.natCounts.map((_,i)=>palette[i%palette.length])}] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }
+  });
+
+  const natLabels = d.natCounts.map(([n])=>n);
+  const buildStackedNatChart = (elId, matrix) => {
+    const el = document.getElementById(elId);
+    if(!el) return null;
+    return new Chart(el, {
+      type:'bar',
+      data:{ labels: MONTH_LABELS, datasets: natLabels.map((n,i)=>({
+        label: n, data: matrix.map(monthObj=> monthObj[n]||0), backgroundColor: palette[i%palette.length]
+      })) },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true}, y:Object.assign({stacked:true}, countTicks)} }
+    });
+  };
+  statsChartInstances.natCharterMonth = buildStackedNatChart('chart-nat-charter-month', d.natByCharterMonth);
+  statsChartInstances.natBookingMonth = buildStackedNatChart('chart-nat-booking-month', d.natByBookingMonth);
 }
 
 function renderCashFlowSection(){
@@ -2448,6 +2712,18 @@ function renderCaseDetail(id){
         <div class="field"><label class="field-label">Case Number</label><input type="text" data-f="caseNumber" value="${esc(c.caseNumber)}" placeholder="000-YYYY"></div>
         <div class="field"><label class="field-label">Client Name</label><input type="text" data-f="clientName" value="${esc(c.clientName)}" placeholder="e.g. J. Harrington"></div>
         <div class="field"><label class="field-label">Yacht Name</label><input type="text" data-f="yachtName" value="${esc(c.yachtName)}" placeholder="e.g. M/Y Serenity"></div>
+      </div>
+      <div class="row c3">
+        <div class="field">
+          <label class="field-label">Yacht Type</label>
+          <select data-f="yachtType">
+            <option value="">— Select —</option>
+            <option value="sail" ${c.yachtType==='sail'?'selected':''}>Sail</option>
+            <option value="motor" ${c.yachtType==='motor'?'selected':''}>Motor</option>
+            <option value="catamaran" ${c.yachtType==='catamaran'?'selected':''}>Catamaran</option>
+          </select>
+        </div>
+        <div class="field"><label class="field-label">Yacht Length (m)</label><input type="text" inputmode="decimal" data-f="yachtLength" value="${esc(c.yachtLength)}" placeholder="e.g. 24"></div>
       </div>
       <div class="row c3">
         <div class="field">
@@ -3168,6 +3444,11 @@ function wireGlobalEvents(){
     STATE.view.statsTab = el.dataset.statsTab;
     render();
   }));
+  const chartsYearSelect = app.querySelector('[data-charts-year]');
+  if(chartsYearSelect) chartsYearSelect.addEventListener('change', ()=>{
+    STATE.view.chartsYear = chartsYearSelect.value;
+    render();
+  });
   app.querySelectorAll('[data-sort-field]').forEach(el=>el.addEventListener('click', ()=>{
     const field = el.dataset.sortField;
     if(STATE.view.sortField === field){

@@ -30,8 +30,42 @@ più persone).
   commissioni), **Booking & Charter Trends** (confronto pratica per pratica tra
   data firma contratto e data inizio charter, lunghezza charter in giorni,
   budget cliente — solo pratiche Charter, le Sale non hanno charter
-  start/end date), Cash Flow (esportazione movimenti per periodo), By Year
-  (riepilogo per anno, dedotto dalle ultime 4 cifre del numero pratica)
+  start/end date), **Charts** (vedi sotto), Cash Flow (esportazione movimenti
+  per periodo), By Year (riepilogo per anno, dedotto dalle ultime 4 cifre del
+  numero pratica)
+
+### Statistics → Charts
+Usa **Chart.js** (via CDN, `chart.umd.min.js`) — unica libreria esterna
+nel progetto oltre a Supabase. Tutti i grafici sono generati da
+`renderStatsCharts()` (dati) + `initStatsCharts()` (istanze Chart.js create
+sui `<canvas>` appena inseriti nel DOM da `render()`), e includono solo
+pratiche **Charter** (le Sale non hanno cruising area / date charter).
+
+- **Selettore anno** (`STATE.view.chartsYear`, "All years" di default):
+  filtra TUTTI i grafici della scheda, usando lo stesso anno derivato dal
+  numero pratica (`yearFromCaseNumber`) già usato da "By Year" — così
+  l'insieme di pratiche resta coerente nelle varie schede di Statistics.
+- **Booking Trend** / **Most Chartered Periods**: bucket per mese
+  (Gen-Dic) usando solo il *mese* della data (non l'anno specifico) —
+  Booking Trend conta il mese di `contractSignDate`, Most Chartered
+  Periods conta ogni mese toccato dall'intervallo
+  `charterStartDate`-`charterEndDate` (`monthsOverlapped()` — un charter
+  che scavalca il cambio mese/anno conta in entrambi i mesi).
+- **Most Popular Cruising Areas**: barre orizzontali, conteggio per
+  `c.cruisingArea`, altezza del grafico proporzionale al numero di aree
+  per restare leggibile.
+- **Yacht Size Chosen**: nuovi campi pratica `c.yachtType`
+  ('sail'|'motor'|'catamaran') e `c.yachtLength` (metri, testo libero) —
+  aggiunti in General Information subito dopo Yacht Name, per Charter e
+  Sale. Barre impilate per fascia di lunghezza (`YACHT_LENGTH_BUCKETS`),
+  una serie per tipo.
+- **Nationality**: torta sulle top 7 nazionalità per conteggio
+  (`c.clientNationality`), il resto raggruppato in "Other"
+  (`nationalityCounts()`).
+- **Nationality by Charter/Booking Month**: due barre impilate mese per
+  mese (stesse top nazionalità della torta sopra, stesso raggruppamento
+  "Other") — la prima usa i mesi del charter (come Most Chartered
+  Periods), la seconda il mese di firma contratto (come Booking Trend).
 
 ## Modalità multiutente (Supabase)
 In cima allo script ci sono queste costanti da configurare:
