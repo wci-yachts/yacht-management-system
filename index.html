@@ -1658,6 +1658,20 @@ function renderCalendarMonthBlock(year, month, cases, todayStr){
     ${weeksHtml}
   `;
 }
+/* Year range for the calendar's jump-to select: always spans "now" plus
+   whatever years any file's charter dates actually touch, so an old
+   closed pratica's year is reachable without scrolling past the end of a
+   fixed, arbitrary range. */
+function calendarYearOptions(){
+  const now = new Date().getFullYear();
+  const years = new Set([now-1, now, now+1]);
+  STATE.cases.forEach(c=>{
+    [c.charterStartDate, c.charterEndDate].forEach(d=>{
+      if(d) years.add(new Date(d+'T00:00:00').getFullYear());
+    });
+  });
+  return Array.from(years).sort((a,b)=>a-b);
+}
 function renderCalendar(){
   const now = new Date();
   const year = STATE.view.calYear!==undefined ? STATE.view.calYear : now.getFullYear();
@@ -1678,11 +1692,19 @@ function renderCalendar(){
   let nextMonth = month+1, nextYear = year;
   if(nextMonth>11){ nextMonth=0; nextYear+=1; }
 
+  const yearOptions = calendarYearOptions();
+
   return `
     <div class="search-bar no-print" style="align-items:center;">
       <button class="btn btn-ghost btn-sm" data-cal-nav="prev">← Prev</button>
       <button class="btn btn-ghost btn-sm" data-cal-nav="today">Today</button>
       <button class="btn btn-ghost btn-sm" data-cal-nav="next">Next →</button>
+      <select id="cal-jump-month" title="Jump to month" style="width:auto;">
+        ${MONTH_LABELS.map((m,i)=>`<option value="${i}" ${month===i?'selected':''}>${m}</option>`).join('')}
+      </select>
+      <select id="cal-jump-year" title="Jump to year" style="width:auto;">
+        ${yearOptions.map(y=>`<option value="${y}" ${year===y?'selected':''}>${y}</option>`).join('')}
+      </select>
       <select id="cal-filter-yacht" style="margin-left:auto;">
         <option value="">All yachts</option>
         ${activeYachtNames.map(y=>`<option value="${esc(y)}" ${yachtFilter===y?'selected':''}>${esc(y)}</option>`).join('')}
@@ -2755,6 +2777,7 @@ function renderCaseDetail(id){
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       ${renderStatusControl(c)}
+      ${c.type!=='sale' && c.charterStartDate ? `<button class="btn btn-ghost btn-sm" data-view-in-calendar="${c.id}">View in Calendar</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
       ${STATE.view.confirmDelete===c.id
         ? `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-case="${c.id}">Confirm delete — cannot be undone</button>
@@ -3489,6 +3512,24 @@ function wireGlobalEvents(){
   }));
   const calFilterYacht = document.getElementById('cal-filter-yacht');
   if(calFilterYacht) calFilterYacht.addEventListener('change', (e)=>{ STATE.view.calYachtFilter = e.target.value; render(); });
+  const jumpToCalMonth = () => {
+    const jm = document.getElementById('cal-jump-month'), jy = document.getElementById('cal-jump-year');
+    if(!jm || !jy) return;
+    STATE.view.calMonth = +jm.value;
+    STATE.view.calYear = +jy.value;
+    render();
+  };
+  const calJumpMonth = document.getElementById('cal-jump-month');
+  if(calJumpMonth) calJumpMonth.addEventListener('change', jumpToCalMonth);
+  const calJumpYear = document.getElementById('cal-jump-year');
+  if(calJumpYear) calJumpYear.addEventListener('change', jumpToCalMonth);
+  app.querySelectorAll('[data-view-in-calendar]').forEach(el=>el.addEventListener('click', ()=>{
+    const cs = getCase(el.dataset.viewInCalendar);
+    if(!cs || !cs.charterStartDate) return;
+    const d = new Date(cs.charterStartDate+'T00:00:00');
+    STATE.view = {tab:'calendar', calYear: d.getFullYear(), calMonth: d.getMonth()};
+    render();
+  }));
 
   const fbId = STATE.view.tab==='feedback' ? STATE.view.feedbackId : null;
   const f = fbId ? getFeedback(fbId) : null;
