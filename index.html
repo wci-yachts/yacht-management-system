@@ -658,6 +658,7 @@ function newCase(fileType){
     crewTipReceivedAmount: '',
     crewTipForwardAmount: '',
     apaBalanceClientAmount: '',
+    clientInstallment2Amount: '',
     saleDueDates: {}, // key -> 'YYYY-MM-DD' — manually-set payment due dates, sale files only
     customPayments: [], // {id, description, reason, direction:'in'|'out', amount, due, status, paidDate}
     paymentOverrides: {}, // key -> {amount:'', note:''} — actual amount received/paid + a note, when it differs from the calculated one
@@ -665,7 +666,7 @@ function newCase(fileType){
        end-of-charter tidy-up rather than something every file needs — start
        new files with it out of the way; the existing "Removed from this
        file — ↺ restore" control brings any of them back with one click. */
-    hiddenPayments: type==='sale' ? {} : {crew_tip_received:true, crew_tip_forward:true, apa_refund_in:true, apa_refund_out:true, apa_balance_client:true, apa_balance_owner:true},
+    hiddenPayments: type==='sale' ? {} : {client_installment2:true, crew_tip_received:true, crew_tip_forward:true, apa_refund_in:true, apa_refund_out:true, apa_balance_client:true, apa_balance_owner:true},
     paymentOrder: [], // custom display order for preset payments (list of keys); anything not listed falls back to the default order
     reconciliation: {amount:'', direction:'out', note:''},
     payments: {}, // key -> {status:'pending'|'paid', paidDate:''}
@@ -908,15 +909,28 @@ function buildScheduleItemsCharter(c){
   const balanceCascadeNote = depositShortfall!==0
     ? `Includes the ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'shortfall':'overpayment'} carried over from Client Deposit (base amount would be ${fmtMoney(balanceBaseExpected)})`
     : null;
-  /* Occasionally a charter is paid in three client-side installments instead
-     of the usual two: a normal "+ Add extra payment" (direction In, From
-     Client) manually reordered to sit before "APA + Delivery" below. Any
-     such payment's entered amount counts toward what's been collected from
-     the client, closing part or all of whatever shortfall would otherwise
-     be deducted in full from APA + Delivery — same principle as the Client
-     Deposit -> Client Balance cascade above, just for a third tranche. This
-     is unrelated to the separate "APA Balance" preset lines further down,
-     which are an independent, always-end-of-charter settlement. */
+  /* Occasionally a charter is paid in three (or more) client-side
+     installments instead of the usual two. Two ways to collect an extra
+     tranche both count toward what's been collected from the client,
+     closing part or all of whatever shortfall would otherwise be deducted
+     in full from APA + Delivery — same principle as the Client Deposit ->
+     Client Balance cascade above:
+       1. the preset "Client 2nd Installment" line below (hidden by
+          default — restore it with the usual ↺ to opt into a 3-tranche
+          plan for this file), manual amount + manual due date;
+       2. a normal "+ Add extra payment" (direction In, From Client)
+          manually reordered to sit before "APA + Delivery", for anything
+          beyond a third tranche or a one-off case.
+     This is unrelated to the separate "APA Balance" preset lines further
+     down, which are an independent, always-end-of-charter settlement. */
+  const dueFor = key => (c.saleDueDates && c.saleDueDates[key]) || '';
+  const installment2Hidden = !!(c.hiddenPayments && c.hiddenPayments['client_installment2']);
+  const installment2Amount = (!installment2Hidden && c.clientInstallment2Amount!=='') ? num(c.clientInstallment2Amount) : 0;
+  const installment2DefaultDue = (() => {
+    if(!depositDue || !balanceDue) return '';
+    const days = Math.round((new Date(balanceDue+'T00:00:00') - new Date(depositDue+'T00:00:00')) / 86400000 / 2);
+    return addDays(depositDue, days);
+  })();
   const orderArr = Array.isArray(c.paymentOrder) ? c.paymentOrder : [];
   const apaDeliveryOrderIdx = orderArr.indexOf('fixed:owner_apa_delivery');
   const extraInBeforeApaDelivery = c.customPayments
@@ -927,7 +941,7 @@ function buildScheduleItemsCharter(c){
       return apaDeliveryOrderIdx===-1 ? true : cpIdx < apaDeliveryOrderIdx;
     })
     .reduce((sum,cp)=> sum + (cp.amount!=='' ? num(cp.amount) : 0), 0);
-  const netApaShortfall = Math.max(0, balanceShortfall - extraInBeforeApaDelivery);
+  const netApaShortfall = Math.max(0, balanceShortfall - extraInBeforeApaDelivery - installment2Amount);
   const apaCascadeNote = netApaShortfall>0
     ? `Reduced by ${fmtMoney(netApaShortfall)} — the client's payments received so far are still short by that amount`
     : null;
@@ -970,6 +984,13 @@ function buildScheduleItemsCharter(c){
     due: depositDue,
     note:'50% Charter Rate less our Retail Broker commission',
     visible: isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'client_installment2', label:'Client 2nd Installment', party:'From Client',
+    amount: c.clientInstallment2Amount!=='' ? num(c.clientInstallment2Amount) : null,
+    due: dueFor('client_installment2') || installment2DefaultDue,
+    note:'Optional 3rd tranche — enter the agreed amount and, if needed, adjust the date',
+    always:true, manualAmount:true, manualField:'clientInstallment2Amount', manualDue:true, direction:'in', ledger:true
   });
   list.push({
     key:'client_balance', label:'Client Balance', party:'From Client',

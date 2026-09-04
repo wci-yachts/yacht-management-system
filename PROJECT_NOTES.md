@@ -159,6 +159,18 @@ compilabile, niente è duplicato.
     nell'ordine naturale dello schedule (scadenza = data fine charter) e
     non vanno mai riordinate prima di "APA + Delivery" — si riattivano con
     "↺" come qualunque altro pagamento nascosto.
+  - **"Client 2nd Installment"**: riga preimpostata (nascosta di default,
+    si riattiva con "↺") per il caso comune dei 3 acconti dal cliente —
+    posizione naturale tra Client Deposit e Client Balance, importo
+    manuale (`c.clientInstallment2Amount`) e data manuale
+    (`c.saleDueDates['client_installment2']`, stesso meccanismo già usato
+    per le date manuali delle pratiche Sale — riusato qui senza modifiche)
+    con default a metà strada tra la scadenza del Deposit e quella del
+    Balance. Il suo importo partecipa alla cascata sopra esattamente come
+    un pagamento extra riordinato manualmente (`installment2Amount` in
+    `netApaShortfall`) — è semplicemente la via "di serie" per lo stesso
+    scenario, senza dover aggiungere e riordinare un pagamento extra a
+    mano.
 - **`hiddenPayments` di default**: `newCase('charter')` nasconde già
   all'apertura i pagamenti di fine-charter meno frequenti (crew tip, APA
   refund, le due righe "APA Balance") — si riattivano con "↺" come
