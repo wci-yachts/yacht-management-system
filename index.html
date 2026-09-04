@@ -592,6 +592,10 @@ function daysFromToday(dateStr){
   const dt = new Date(dateStr+'T00:00:00');
   return Math.round((dt-today)/86400000);
 }
+function daysBetween(fromStr, toStr){
+  if(!fromStr || !toStr) return null;
+  return Math.round((new Date(toStr+'T00:00:00') - new Date(fromStr+'T00:00:00')) / 86400000);
+}
 /* Native date/time pickers get closed by any DOM re-render while they're open,
    and re-rendering mid-keystroke on a partially-typed date wipes what was
    typed. 'change' isn't safe either for a field that already has a value —
@@ -926,11 +930,7 @@ function buildScheduleItemsCharter(c){
   const dueFor = key => (c.saleDueDates && c.saleDueDates[key]) || '';
   const installment2Hidden = !!(c.hiddenPayments && c.hiddenPayments['client_installment2']);
   const installment2Amount = (!installment2Hidden && c.clientInstallment2Amount!=='') ? num(c.clientInstallment2Amount) : 0;
-  const installment2DefaultDue = (() => {
-    if(!depositDue || !balanceDue) return '';
-    const days = Math.round((new Date(balanceDue+'T00:00:00') - new Date(depositDue+'T00:00:00')) / 86400000 / 2);
-    return addDays(depositDue, days);
-  })();
+  const installment2DefaultDue = (depositDue && balanceDue) ? addDays(depositDue, Math.round(daysBetween(depositDue, balanceDue)/2)) : '';
   const orderArr = Array.isArray(c.paymentOrder) ? c.paymentOrder : [];
   const apaDeliveryOrderIdx = orderArr.indexOf('fixed:owner_apa_delivery');
   const extraInBeforeApaDelivery = c.customPayments
@@ -1757,16 +1757,104 @@ function renderStatistics(){
     </div>`;
   };
 
-  return `
+  const statsTabs = [
+    ['overview','Overview'],
+    ['trends','Booking & Charter Trends'],
+    ['cashflow','Cash Flow'],
+    ['byyear','By Year'],
+  ];
+  const statsTab = statsTabs.some(([k])=>k===STATE.view.statsTab) ? STATE.view.statsTab : 'overview';
+  const nav = `
+    <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      ${statsTabs.map(([k,l])=>`<button data-stats-tab="${k}" class="btn btn-sm ${statsTab===k?'btn-brass':'btn-ghost'}">${esc(l)}</button>`).join('')}
+    </div>`;
+
+  let body;
+  if(statsTab==='trends'){
+    body = renderStatsTrends();
+  }else if(statsTab==='cashflow'){
+    body = renderCashFlowSection();
+  }else if(statsTab==='byyear'){
+    body = `${years.map(y=>renderYearTable(y, groups[y])).join('')}${noYear.length ? renderYearTable('No year found in case number', noYear) : ''}`;
+  }else{
+    body = `
     <div class="dash-grid">
       <div class="stat-card"><div class="num">${STATE.cases.length}</div><div class="lbl">Charter files</div></div>
       <div class="stat-card"><div class="num">${fmtMoney(grand.charterRate)}</div><div class="lbl">Total charter rate</div></div>
       <div class="stat-card"><div class="num">${fmtMoney(grand.retailCommission)}</div><div class="lbl">Retail Broker commission</div></div>
       <div class="stat-card"><div class="num">${fmtMoney(grand.centralCommission)}</div><div class="lbl">Central Agent commission</div></div>
+    </div>`;
+  }
+
+  return nav + body;
+}
+
+/* Booking lead time (contract sign -> charter start), charter length, and
+   average client budget — charter files only (sale files don't carry
+   charter start/end dates, see renderCaseDetail's General Information
+   card), one row per file so they can be compared against each other, not
+   just averaged. */
+function renderStatsTrends(){
+  const charterCases = STATE.cases.filter(c=>c.type!=='sale');
+  const rows = charterCases
+    .filter(c=>c.contractSignDate || c.charterStartDate || c.charterEndDate)
+    .map(c=>{
+      const {rate, vatAmt, apaAmt, delivery} = calc(c);
+      return {
+        id: c.id, caseNumber: c.caseNumber, yachtName: c.yachtName,
+        contractSignDate: c.contractSignDate, charterStartDate: c.charterStartDate, charterEndDate: c.charterEndDate,
+        leadDays: daysBetween(c.contractSignDate, c.charterStartDate),
+        durationDays: daysBetween(c.charterStartDate, c.charterEndDate),
+        totalForClient: rate + vatAmt + apaAmt + delivery
+      };
+    })
+    .sort((a,b)=> (b.charterStartDate||'').localeCompare(a.charterStartDate||''));
+
+  const avg = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
+  const median = arr => {
+    if(!arr.length) return null;
+    const sorted = arr.slice().sort((a,b)=>a-b);
+    const mid = Math.floor(sorted.length/2);
+    return sorted.length%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+  };
+  const leadValues = rows.map(r=>r.leadDays).filter(v=>v!==null);
+  const durationValues = rows.map(r=>r.durationDays).filter(v=>v!==null);
+  const budgetValues = charterCases.map(c=>{ const {rate,vatAmt,apaAmt,delivery} = calc(c); return rate+vatAmt+apaAmt+delivery; }).filter(v=>v>0);
+
+  const fmtDays = v => (v===null || v===undefined) ? '—' : Math.round(v).toLocaleString('en-GB');
+
+  return `
+    <div class="dash-grid">
+      <div class="stat-card"><div class="num">${fmtDays(avg(leadValues))}</div><div class="lbl">Avg. days — contract sign to charter start</div></div>
+      <div class="stat-card"><div class="num">${fmtDays(median(leadValues))}</div><div class="lbl">Median days — contract sign to charter start</div></div>
+      <div class="stat-card"><div class="num">${fmtDays(avg(durationValues))}</div><div class="lbl">Avg. charter length (days)</div></div>
+      <div class="stat-card"><div class="num">${fmtMoney(avg(budgetValues)||0)}</div><div class="lbl">Avg. total charter cost (client)</div></div>
     </div>
-    ${renderCashFlowSection()}
-    ${years.map(y=>renderYearTable(y, groups[y])).join('')}
-    ${noYear.length ? renderYearTable('No year found in case number', noYear) : ''}
+    <div class="card">
+      <div class="card-head"><h2><span class="eyebrow">Compare</span>&nbsp; Charter Files</h2><span class="muted" style="font-size:12px;">${rows.length} file${rows.length===1?'':'s'}</span></div>
+      <div class="card-body" style="padding:0;">
+        <table>
+          <thead><tr>
+            <th>Case #</th><th>Yacht</th><th>Contract Sign</th><th>Charter Start</th><th>Charter End</th>
+            <th style="text-align:right;">Sign → Start (days)</th>
+            <th style="text-align:right;">Length (days)</th>
+            <th style="text-align:right;">Total Charter (Client)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.length ? rows.map(r=>`<tr class="clickable" data-open-case="${r.id}">
+              <td class="mono">${r.caseNumber?esc(r.caseNumber):'<span class="muted">—</span>'}</td>
+              <td>${esc(r.yachtName)||'<span class="muted">—</span>'}</td>
+              <td class="mono">${r.contractSignDate?fmtDate(r.contractSignDate):'—'}</td>
+              <td class="mono">${r.charterStartDate?fmtDate(r.charterStartDate):'—'}</td>
+              <td class="mono">${r.charterEndDate?fmtDate(r.charterEndDate):'—'}</td>
+              <td style="text-align:right;" class="amount">${r.leadDays!==null?r.leadDays:'—'}</td>
+              <td style="text-align:right;" class="amount">${r.durationDays!==null?r.durationDays:'—'}</td>
+              <td style="text-align:right;" class="amount">${fmtMoney(r.totalForClient)}</td>
+            </tr>`).join('') : `<tr><td colspan="8">${emptyState('No dates yet','Once charter files have a Contract Sign Date, Charter Start and End Date, they will appear here for comparison.')}</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
 }
 
@@ -3074,6 +3162,10 @@ function wireGlobalEvents(){
     const key = el.dataset.toggleSection;
     STATE.view.openSections = STATE.view.openSections || {};
     STATE.view.openSections[key] = !STATE.view.openSections[key];
+    render();
+  }));
+  app.querySelectorAll('[data-stats-tab]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.view.statsTab = el.dataset.statsTab;
     render();
   }));
   app.querySelectorAll('[data-sort-field]').forEach(el=>el.addEventListener('click', ()=>{

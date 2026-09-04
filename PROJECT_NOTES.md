@@ -26,7 +26,12 @@ più persone).
   colorate per barca
 - **Feedback**: raccolta feedback clienti, collegabile alle pratiche, con
   importazione CSV e sincronizzazione da Supabase (vedi sotto)
-- **Statistics**: riepilogo per anno (dedotto dalle ultime 4 cifre del numero pratica)
+- **Statistics**: diviso in schede (`STATE.view.statsTab`) — Overview (totali e
+  commissioni), **Booking & Charter Trends** (confronto pratica per pratica tra
+  data firma contratto e data inizio charter, lunghezza charter in giorni,
+  budget cliente — solo pratiche Charter, le Sale non hanno charter
+  start/end date), Cash Flow (esportazione movimenti per periodo), By Year
+  (riepilogo per anno, dedotto dalle ultime 4 cifre del numero pratica)
 
 ## Modalità multiutente (Supabase)
 In cima allo script ci sono queste costanti da configurare:
