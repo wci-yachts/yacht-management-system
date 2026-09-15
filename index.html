@@ -922,9 +922,11 @@ function buildScheduleItemsCharter(c){
   };
   /* Removing Client Deposit from a file (the × in the schedule table) folds
      its amount into Client Balance too, the same way a late-signed contract
-     does — the client just ends up paying it all in one go. */
-  const depositManuallyHidden = !!(c.hiddenPayments && c.hiddenPayments['client_deposit']);
-  const depositFolded = lateSign || depositManuallyHidden;
+     does — the client just ends up paying it all in one go. Late signing
+     only sets the DEFAULT (via defaultHidden below) rather than forcing it
+     — if a deposit is still wanted despite the short timeline, "↺ Client
+     Deposit" fishes it back out instead of it being gone for good. */
+  const depositFolded = isPaymentHidden(c, {key:'client_deposit', defaultHidden: lateSign});
 
   const depositExpected = isRetail ? rate*0.5 : (rate*0.5 - retailComm);
   const depositActual = overrideAmount('client_deposit');
@@ -979,17 +981,17 @@ function buildScheduleItemsCharter(c){
      normal 50% balance otherwise. What we forward on (ca_balance,
      owner_apa_delivery below) always uses the normal, unmerged balanceExpected. */
   const clientBalanceAmount = depositFolded ? (depositExpected + balanceExpected) : balanceExpected;
-  const clientBalanceDue = lateSign ? c.contractSignDate : balanceDue;
-  const clientBalanceNote = lateSign
-    ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing (signed less than a month before departure, so there is no separate deposit)'
-    : depositManuallyHidden
-      ? 'Full Charter Rate + VAT + APA + Delivery — includes the Client Deposit'
-      : '50% Charter Rate + VAT + APA + Delivery';
-  const clientBalanceCascadeNote = lateSign
-    ? null
-    : depositManuallyHidden
-      ? `Includes ${fmtMoney(depositExpected)} for "Client Deposit" — both paid together`
-      : balanceCascadeNote;
+  const clientBalanceDue = (depositFolded && lateSign) ? c.contractSignDate : balanceDue;
+  const clientBalanceNote = !depositFolded
+    ? '50% Charter Rate + VAT + APA + Delivery'
+    : lateSign
+      ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing (signed less than a month before departure, so there is no separate deposit)'
+      : 'Full Charter Rate + VAT + APA + Delivery — includes the Client Deposit';
+  const clientBalanceCascadeNote = !depositFolded
+    ? balanceCascadeNote
+    : lateSign
+      ? null
+      : `Includes ${fmtMoney(depositExpected)} for "Client Deposit" — both paid together`;
 
   list.push({
     key:'client_deposit', label:'Client Deposit', party:'From Client',
@@ -997,7 +999,7 @@ function buildScheduleItemsCharter(c){
     due: depositDue,
     note: isRetail ? '50% of Charter Rate' : '50% of Charter Rate less Retail Broker commission',
     cascadeNote: depositCascadeNote,
-    visible: !lateSign, direction:'in', ledger:true
+    always:true, defaultHidden: lateSign, direction:'in', ledger:true
   });
   list.push({
     key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
@@ -1142,6 +1144,16 @@ function buildScheduleItemsCharter(c){
     note:'Preset to total VAT',
     visible: !!c.vatViaAgency, direction:'out', ledger:true
   });
+  /* When late signing pushes Client Deposit to hidden-by-default, its
+     natural fallback position (used whenever a row isn't in
+     c.paymentOrder yet) moves to the very end of the schedule too — if
+     it's fished back out with "↺" it lands after everything else rather
+     than jumping back to the top, where it no longer makes chronological
+     sense once the client is already paying everything near the end. */
+  if(lateSign){
+    const idx = list.findIndex(p=>p.key==='client_deposit');
+    if(idx!==-1) list.push(list.splice(idx,1)[0]);
+  }
   return list;
 }
 
@@ -1225,15 +1237,26 @@ function buildRawSchedule(c){
   return list.filter(p=>p.always || p.visible);
 }
 
+/* Tri-state hidden check for one payment row: an explicit choice recorded
+   in c.hiddenPayments (× to hide, ↺ to restore) always wins; with no
+   explicit choice yet, falls back to the row's own defaultHidden flag —
+   used for a default that depends on live case data (e.g. Client Deposit
+   defaulting to hidden only once the contract is signed too close to the
+   charter, see buildScheduleItemsCharter) rather than a fixed default
+   baked in at newCase() time. */
+function isPaymentHidden(c, p){
+  const explicit = (c.hiddenPayments || {})[p.key];
+  if(explicit===true) return true;
+  if(explicit===false) return false;
+  return !!p.defaultHidden;
+}
 /* schedule actually shown/counted for this file — excludes rows the user has hidden */
 function buildPaymentSchedule(c){
-  const hidden = c.hiddenPayments || {};
-  return buildRawSchedule(c).filter(p=>!hidden[p.key]);
+  return buildRawSchedule(c).filter(p=>!isPaymentHidden(c,p));
 }
-/* preset rows the user has hidden from this specific file, so they can be listed & restored */
+/* preset rows hidden from this specific file (explicitly or by default), so they can be listed & restored */
 function getHiddenPresetPayments(c){
-  const hidden = c.hiddenPayments || {};
-  return buildRawSchedule(c).filter(p=>hidden[p.key]);
+  return buildRawSchedule(c).filter(p=>isPaymentHidden(c,p));
 }
 
 /* Preset payments and extra (custom) payments are merged into a single
@@ -3922,7 +3945,13 @@ function wireGlobalEvents(){
       });
     });
     app.querySelectorAll('[data-restore-payment]').forEach(el=>el.addEventListener('click', ()=>{
-      if(c.hiddenPayments) delete c.hiddenPayments[el.dataset.restorePayment];
+      /* Explicit false, not delete — a row can default to hidden from live
+         case data (defaultHidden, e.g. Client Deposit on a late-signed
+         contract) rather than only from a fixed newCase() seed, and merely
+         removing the key would fall straight back to that default instead
+         of actually restoring the row. */
+      if(!c.hiddenPayments) c.hiddenPayments = {};
+      c.hiddenPayments[el.dataset.restorePayment] = false;
       persistAndRender();
     }));
     app.querySelectorAll('[data-att]').forEach(el=>el.addEventListener('change', ()=>{

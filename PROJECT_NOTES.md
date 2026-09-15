@@ -267,6 +267,25 @@ compilabile, niente è duplicato.
   esplicitamente ripristinata con "↺" in passato, quella scelta non viene
   toccata. Le altre voci nascoste di default (crew tip, APA refund) non
   hanno questa migrazione retroattiva.
+- **Nascosto "di default" vs nascosto esplicito** (`isPaymentHidden()`):
+  ogni riga dello schedule ha uno stato a tre valori — `c.hiddenPayments[key]`
+  esplicito (`true`/`false`, impostato da "×"/"↺") vince sempre; se non
+  c'è mai stata una scelta esplicita, si ricade sul flag `defaultHidden`
+  della riga stessa (calcolato al volo da `buildScheduleItemsCharter()`,
+  può dipendere da altri campi della pratica — non è più solo un valore
+  fisso impostato una volta in `newCase()`). Usato da **Client Deposit**:
+  se il contratto viene firmato a meno di un mese dalla partenza
+  (`lateSign`), la riga di default sparisce (si fonde in Client Balance,
+  pagato tutto in un'unica soluzione) ma resta recuperabile con
+  "↺ Client Deposit" — a differenza di un `visible:false` puro, che la
+  toglierebbe dallo schedule in modo permanente e non ripescabile. Quando
+  `lateSign` è vero, la posizione naturale (di fallback, quando la riga
+  non è ancora in `c.paymentOrder`) di Client Deposit si sposta anche in
+  fondo allo schedule invece che in cima, dato che a quel punto non ha
+  più senso cronologico tenerla per prima. **Importante**: il pulsante
+  "↺" imposta sempre `false` esplicito, mai `delete` — cancellare la
+  chiave farebbe ricadere sul `defaultHidden`, vanificando il ripescaggio
+  quando il default è ancora attivo (es. `lateSign` ancora vero).
 - **Reconciliation** (`buildLedger()`) mostra solo i pagamenti con la
   spunta "pagato" confermata (non quelli previsti/in attesa), ordinati per
   data di pagamento effettiva — non per scadenza.
