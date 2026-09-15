@@ -678,7 +678,7 @@ function newCase(fileType){
        end-of-charter tidy-up rather than something every file needs — start
        new files with it out of the way; the existing "Removed from this
        file — ↺ restore" control brings any of them back with one click. */
-    hiddenPayments: type==='sale' ? {} : {client_installment2:true, crew_tip_received:true, crew_tip_forward:true, apa_refund_in:true, apa_refund_out:true, apa_balance_client:true, apa_balance_owner:true},
+    hiddenPayments: type==='sale' ? {} : {client_installment2:true, crew_tip_received:true, crew_tip_forward:true, apa_refund_in:true, apa_refund_out:true, apa_balance_client:true, apa_balance_owner:true, apa_balance_ca:true},
     paymentOrder: [], // custom display order for preset payments (list of keys); anything not listed falls back to the default order
     reconciliation: {amount:'', direction:'out', note:''},
     payments: {}, // key -> {status:'pending'|'paid', paidDate:''}
@@ -1087,6 +1087,13 @@ function buildScheduleItemsCharter(c){
     due: c.charterEndDate,
     note:'Forwarded to the owner — APA never carries commission',
     visible: !isRetail, direction:'out', ledger:true
+  });
+  list.push({
+    key:'apa_balance_ca', label:'APA Balance to Central Agent', party:'To Central Agent',
+    amount: c.apaBalanceClientAmount!=='' ? num(c.apaBalanceClientAmount) : 0,
+    due: c.charterEndDate,
+    note:'Forwarded to the Central Agent — APA never carries commission',
+    visible: isRetail, direction:'out', ledger:true
   });
   list.push({
     key:'crew_tip_received', label:'Crew Tip — Received from Client', party:'From Client',

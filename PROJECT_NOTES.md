@@ -216,14 +216,19 @@ compilabile, niente è duplicato.
     Retail) non partecipa, per lo stesso motivo per cui non partecipa
     neanche alla cascata normale a 2 tranche (Client Deposit → Client
     Balance).
-  - **"APA Balance from Client" / "APA Balance to Owner"** (quest'ultima
-    solo ruolo Central Agent) sono invece due righe preimpostate ma
-    nascoste di default, indipendenti dalla cascata sopra: servono per un
-    conguaglio APA scoperto solo a fine charter (importo manuale in
-    `c.apaBalanceClientAmount`). Stanno **sempre dopo "Balance to Owner"**
-    nell'ordine naturale dello schedule (scadenza = data fine charter) e
-    non vanno mai riordinate prima di "APA + Delivery" — si riattivano con
-    "↺" come qualunque altro pagamento nascosto.
+  - **"APA Balance from Client" / "APA Balance to Owner" / "APA Balance to
+    Central Agent"** sono invece righe preimpostate ma nascoste di
+    default, indipendenti dalla cascata sopra: servono per un conguaglio
+    APA scoperto solo a fine charter (importo manuale in
+    `c.apaBalanceClientAmount`). "From Client" è sempre presente; delle
+    altre due ne compare solo una alla volta, a seconda del ruolo — "to
+    Owner" (`apa_balance_owner`) in Central Agent, "to Central Agent"
+    (`apa_balance_ca`) in Retail — stesso schema di `owner_apa_delivery`
+    / `ca_deposit`/`ca_balance` (in Retail si inoltra al Central Agent
+    invece che direttamente all'Owner). Stanno **sempre dopo "Balance to
+    Owner"** nell'ordine naturale dello schedule (scadenza = data fine
+    charter) e non vanno mai riordinate prima di "APA + Delivery" — si
+    riattivano con "↺" come qualunque altro pagamento nascosto.
   - **"Client 2nd Installment"**: riga preimpostata (nascosta di default,
     si riattiva con "↺") per il caso comune dei 3 acconti dal cliente —
     posizione naturale tra Client Deposit e Client Balance, importo
