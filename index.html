@@ -3062,9 +3062,9 @@ function renderCaseDetail(id){
       </div>
       <div class="field"><label class="field-label">Notes</label><input type="text" data-f="caCommissionNote" value="${esc(c.caCommissionNote)}" placeholder="Any internal note about this broker/commission"></div>
       <div class="divider-label">Referral / Sub-commission</div>
-      <div class="checklist-item">
+      <div class="checklist-item" style="border-bottom:none;">
         <input type="checkbox" id="referral-enabled" data-referral-toggle ${c.referralEnabled?'checked':''}>
-        <label for="referral-enabled">This file pays a sub-commission to a referral broker — separate from our own Retail/Central Agent role above, doesn't affect any other total. Adds "Subcommission to Referral" to the Payment Schedule below.</label>
+        <label for="referral-enabled" style="font-size:11px;color:var(--ink-soft);">This file pays a sub-commission to a referral broker — separate from our own Retail/Central Agent role above, doesn't affect any other total. Adds "Subcommission to Referral" to the Payment Schedule below.</label>
       </div>
       ${c.referralEnabled ? `
       <div class="row c4">
