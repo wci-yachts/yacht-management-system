@@ -1469,18 +1469,25 @@ function renderCasesList(){
   const sortDir = STATE.view.sortDir || 'desc';
   cases = sortCases(cases, sortField, sortDir);
 
-  /* Grouped by year (same "year from case number" used everywhere else in
-     the app, see yearFromCaseNumber) so the list doesn't turn into one
-     giant table as pratiche pile up year over year — each group collapses
-     independently, defaulting OPEN (unlike Statistics' By Year, which
-     defaults closed) since this is the everyday working list, not a
-     report you'd normally want to keep every year's rows hidden here.
-     Sorting stays global across all groups, same column headers driving
-     the sort of every year's table at once. */
+  /* Grouped by the charter start date's year (contract sign date for Sale
+     files, which have no charter dates) — deliberately NOT the case-number
+     year used by Statistics, since a pratica's case number is assigned
+     when it's opened while its actual charter can land the following
+     year. Each group collapses independently, defaulting OPEN (unlike
+     Statistics' By Year, which defaults closed) since this is the
+     everyday working list, not a report you'd normally want to keep every
+     year's rows hidden here. Sorting stays global across all groups, same
+     column headers driving the sort of every year's table at once. */
+  const yearOfCase = c => {
+    const d = c.charterStartDate || (c.type==='sale' ? c.contractSignDate : '');
+    if(!d) return null;
+    const y = new Date(d+'T00:00:00').getFullYear();
+    return isNaN(y) ? null : String(y);
+  };
   const groups = {};
   let noYear = [];
   cases.forEach(c=>{
-    const year = yearFromCaseNumber(c.caseNumber);
+    const year = yearOfCase(c);
     if(year){ (groups[year] = groups[year]||[]).push(c); }
     else noYear.push(c);
   });
@@ -1509,7 +1516,7 @@ function renderCasesList(){
     </div>
     ${cases.length ? `
       ${years.map(y=>renderYearGroup(y, groups[y])).join('')}
-      ${noYear.length ? renderYearGroup('No year found in case number', noYear) : ''}
+      ${noYear.length ? renderYearGroup('No date set yet', noYear) : ''}
     ` : `<div class="card"><div class="card-body">${emptyState('No matching charter files','Adjust your search or create a new charter file.')}</div></div>`}
   `;
 }

@@ -13,10 +13,14 @@ più persone).
 ## Moduli principali dell'app
 - **Dashboard**: promemoria pagamenti in scadenza/scaduti
 - **Charter Files**: elenco pratiche, ordinabile, filtrabile, con bollino colorato di stato,
-  raggruppato in sezioni pieghevoli per anno (stesso anno dedotto dal numero pratica usato
-  in Statistics, aperte di default — a differenza di Statistics → By Year che parte chiuso,
-  qui è la lista di lavoro quotidiana). L'ordinamento resta unico e globale su tutti i
-  gruppi (cliccare un'intestazione di colonna in un anno riordina anche gli altri).
+  raggruppato in sezioni pieghevoli per anno — **anno della data di inizio charter**
+  (`c.charterStartDate`; per le Sale, che non hanno date charter, usa `c.contractSignDate`),
+  **non** l'anno dedotto dal numero pratica usato invece da Statistics — un numero pratica
+  può differire dall'anno reale del charter (es. contratto firmato a fine anno per una
+  partenza a gennaio successivo). Sezioni aperte di default — a differenza di Statistics →
+  By Year che parte chiuso, qui è la lista di lavoro quotidiana. L'ordinamento resta unico
+  e globale su tutti i gruppi (cliccare un'intestazione di colonna in un anno riordina
+  anche gli altri).
 - **Scheda pratica** (Charter o Sale — due tipi diversi con campi/logica differenti):
   - Dati generali, ruolo (Retail Broker / Central Agent), stato pratica
   - Finanziari: charter rate/sale price, VAT, APA, delivery fee, commissioni
