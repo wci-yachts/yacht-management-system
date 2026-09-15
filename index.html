@@ -2006,10 +2006,10 @@ function renderStatsTrends(){
 
   return `
     <div class="dash-grid">
-      <div class="stat-card"><div class="num">${fmtDays(avg(leadValues))}</div><div class="lbl">Avg. days — contract sign to charter start</div></div>
-      <div class="stat-card"><div class="num">${fmtDays(median(leadValues))}</div><div class="lbl">Median days — contract sign to charter start</div></div>
-      <div class="stat-card"><div class="num">${fmtDays(avg(durationValues))}</div><div class="lbl">Avg. charter length (days)</div></div>
-      <div class="stat-card"><div class="num">${fmtMoney(avg(budgetValues)||0)}</div><div class="lbl">Avg. total charter cost (client)</div></div>
+      <div class="stat-card"><div class="num">${fmtDays(avg(leadValues))}</div>${statLbl('Avg. days — contract sign to charter start', 'Average number of days between Contract Sign Date and Charter Start Date, across Charter files with both dates set — how far in advance clients typically book.')}</div>
+      <div class="stat-card"><div class="num">${fmtDays(median(leadValues))}</div>${statLbl('Median days — contract sign to charter start', 'The middle value of the same sign-to-start gap, less skewed by a few unusually early or last-minute bookings than the average above.')}</div>
+      <div class="stat-card"><div class="num">${fmtDays(avg(durationValues))}</div>${statLbl('Avg. charter length (days)', 'Average number of days between Charter Start Date and Charter End Date, across Charter files with both dates set.')}</div>
+      <div class="stat-card"><div class="num">${fmtMoney(avg(budgetValues)||0)}</div>${statLbl('Avg. total charter cost (client)', 'Average of Charter Rate + VAT + APA + Delivery Fee across all Charter files — what the client pays in total, before any commission split.')}</div>
     </div>
     <div class="card">
       <div class="card-head"><h2><span class="eyebrow">Compare</span>&nbsp; Charter Files</h2><span class="muted" style="font-size:12px;">${rows.length} file${rows.length===1?'':'s'}</span></div>
