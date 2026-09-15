@@ -1523,10 +1523,10 @@ function renderCasesList(){
 
 function renderListDeleteButton(id){
   if(STATE.view.confirmDelete === id){
-    return `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-case-list="${id}">Confirm</button>
-            <button class="btn btn-ghost btn-sm" data-cancel-delete>Cancel</button>`;
+    return `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);width:84px;" data-delete-case-list="${id}">Confirm</button>
+            <button class="btn btn-ghost btn-sm" style="width:84px;" data-cancel-delete>Cancel</button>`;
   }
-  return `<button class="btn btn-ghost btn-sm" data-delete-case-list="${id}" title="Delete this file">Delete</button>`;
+  return `<button class="btn btn-ghost btn-sm" style="width:84px;" data-delete-case-list="${id}" title="Delete this file">Delete ×</button>`;
 }
 
 /* First pass at a checklist-at-a-glance for the Charter Files list — emoji
@@ -1579,8 +1579,8 @@ function renderCasesTable(cases, sortField, sortDir){
             <td>${overdue.length? `<span class="badge badge-danger">${overdue.length} overdue</span>` : `<span class="badge badge-idle">${pending.length} pending</span>`}</td>
             <td class="no-print">${renderChecklistIcons(c)}</td>
             <td class="no-print" style="text-align:right;">
-              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-                <button class="btn btn-ghost btn-sm" data-open-case="${c.id}">Open →</button>
+              <div style="display:flex;flex-direction:column;align-items:stretch;gap:4px;">
+                <button class="btn btn-ghost btn-sm" data-open-case="${c.id}" style="width:84px;">Open →</button>
                 ${renderListDeleteButton(c.id)}
               </div>
             </td>
