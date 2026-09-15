@@ -1469,6 +1469,33 @@ function renderCasesList(){
   const sortDir = STATE.view.sortDir || 'desc';
   cases = sortCases(cases, sortField, sortDir);
 
+  /* Grouped by year (same "year from case number" used everywhere else in
+     the app, see yearFromCaseNumber) so the list doesn't turn into one
+     giant table as pratiche pile up year over year — each group collapses
+     independently, defaulting OPEN (unlike Statistics' By Year, which
+     defaults closed) since this is the everyday working list, not a
+     report you'd normally want to keep every year's rows hidden here.
+     Sorting stays global across all groups, same column headers driving
+     the sort of every year's table at once. */
+  const groups = {};
+  let noYear = [];
+  cases.forEach(c=>{
+    const year = yearFromCaseNumber(c.caseNumber);
+    if(year){ (groups[year] = groups[year]||[]).push(c); }
+    else noYear.push(c);
+  });
+  const years = Object.keys(groups).sort((a,b)=> b.localeCompare(a));
+  const openSections = STATE.view.openSections || {};
+  const renderYearGroup = (label, list) => {
+    const key = 'files_year_'+label;
+    const open = openSections[key]!==undefined ? openSections[key] : true;
+    return `
+    <div class="card">
+      <div class="card-head" data-toggle-section="${esc(key)}" style="cursor:pointer;"><h2><span class="eyebrow">Year</span>&nbsp; ${esc(label)} <span class="muted" style="font-weight:400;">${open?'▾':'▸'}</span></h2><span class="muted" style="font-size:12px;">${list.length} file${list.length===1?'':'s'}</span></div>
+      ${open ? `<div class="card-body" style="padding:0;">${renderCasesTable(list, sortField, sortDir)}</div>` : ''}
+    </div>`;
+  };
+
   return `
     <div class="search-bar no-print">
       <input type="text" id="search-q" placeholder="Search by case number or client…" value="${esc(STATE.view.query||'')}">
@@ -1480,11 +1507,10 @@ function renderCasesList(){
       <span class="muted" style="font-size:12px;">${cases.length} file${cases.length===1?'':'s'}</span>
       <button class="btn btn-brass btn-sm" id="btn-new-file" style="margin-left:auto;">+ New File</button>
     </div>
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        ${cases.length? renderCasesTable(cases, sortField, sortDir) : emptyState('No matching charter files','Adjust your search or create a new charter file.')}
-      </div>
-    </div>
+    ${cases.length ? `
+      ${years.map(y=>renderYearGroup(y, groups[y])).join('')}
+      ${noYear.length ? renderYearGroup('No year found in case number', noYear) : ''}
+    ` : `<div class="card"><div class="card-body">${emptyState('No matching charter files','Adjust your search or create a new charter file.')}</div></div>`}
   `;
 }
 
@@ -1511,7 +1537,7 @@ function renderChecklistIcons(c){
   items.push(['⚓',"Owner's Invoice to Client", !!c.attachments.ownerInvoiceToClient]);
   if(c.type!=='sale') items.push(['📋','Preference list received', !!c.attachments.prefListReceived]);
   items.push(['⭐','Feedback received', !!linkedFeedback]);
-  return `<span class="no-print" style="display:inline-flex;gap:3px;">${items.map(([icon,label,done])=>
+  return `<span class="no-print" style="display:flex;flex-wrap:wrap;gap:3px;max-width:52px;">${items.map(([icon,label,done])=>
     `<span title="${esc(label)}${done?' — done':' — missing'}" style="opacity:${done?'1':'.25'};font-size:14px;">${icon}</span>`
   ).join('')}</span>`;
 }
@@ -1526,7 +1552,7 @@ function renderCasesTable(cases, sortField, sortDir){
   <div style="overflow-x:auto;">
   <table class="cases-table">
     <thead><tr>
-      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Broker','width:1%;')}${col('payments','Payments')}<th class="no-print">Checklist</th><th></th><th class="no-print"></th>
+      ${col('status','Status')}${col('caseNumber','Case #')}${col('clientName','Client')}${col('yachtName','Yacht')}${col('role','Role')}${col('charterStartDate','Charter Start / Departure')}${col('charterEndDate','Charter End / Arrival')}${col('personInCharge','Broker','width:1%;')}${col('payments','Payments')}<th class="no-print">Checklist</th><th class="no-print"></th>
     </tr></thead>
     <tbody>
       ${cases.map(c=>{
@@ -1545,8 +1571,12 @@ function renderCasesTable(cases, sortField, sortDir){
             <td>${esc(c.personInCharge)||'<span class="muted">—</span>'}</td>
             <td>${overdue.length? `<span class="badge badge-danger">${overdue.length} overdue</span>` : `<span class="badge badge-idle">${pending.length} pending</span>`}</td>
             <td class="no-print">${renderChecklistIcons(c)}</td>
-            <td style="text-align:right;"><button class="btn btn-ghost btn-sm" data-open-case="${c.id}">Open →</button></td>
-            <td class="no-print" style="text-align:right;">${renderListDeleteButton(c.id)}</td>
+            <td class="no-print" style="text-align:right;">
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                <button class="btn btn-ghost btn-sm" data-open-case="${c.id}">Open →</button>
+                ${renderListDeleteButton(c.id)}
+              </div>
+            </td>
           </tr>`;
         }catch(err){
           /* a record from an older version of the app couldn't be read — still list it so it can be removed */
