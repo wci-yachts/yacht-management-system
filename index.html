@@ -394,6 +394,15 @@ const MULTIUSER_ENABLED = SUPABASE_URL.indexOf('YOUR-PROJECT-REF') === -1 && !!w
 const supabaseClient = MULTIUSER_ENABLED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let currentUser = null;
 let serverPushTimer = null;
+let pendingCasePushId = null; // case id to upsert on the next debounced server push, see tryPersistLocal()
+/* Detected once loadFromServer() successfully queries the "cases" table —
+   false means that table doesn't exist yet on this Supabase project (the
+   migration SQL hasn't been run), so every save/load keeps using the old
+   shared workspace.data.cases copy instead. This makes rolling out the
+   per-file table a zero-downtime switch: the app behaves exactly as
+   before until the SQL script is run, then switches over on the next
+   load — no risk of a save going nowhere in between. */
+let casesTableAvailable = false;
 let feedbackSettingsOpen = false; // per-session UI toggle, not persisted
 
 const STORAGE_KEY = 'yocharter_manager_data_v1';
@@ -435,29 +444,92 @@ function persistLocalSnapshot(){
 }
 function tryPersistLocal(){
   persistLocalSnapshot();
+  /* Remember which case is on screen right now so the debounced push
+     below knows to upsert JUST that one row (once casesTableAvailable) —
+     captured at edit time, not at push time, so a stray navigation
+     between the last keystroke and the 900ms flush can't misattribute
+     the save to the wrong file. */
+  if(STATE.view.tab==='case' && STATE.view.caseId) pendingCasePushId = STATE.view.caseId;
   schedulePushToServer();
 }
 
-/* ---------------- multi-user sync (Supabase) ---------------- */
+/* ---------------- multi-user sync (Supabase) ----------------
+   Charter/Sale files ("cases") live in their OWN table, one row per
+   file — see supabase-cases-schema.sql — specifically so that saving one
+   file can never clobber a colleague's edits to a DIFFERENT file. Before
+   that migration script has been run on a given Supabase project (or
+   before this device's first successful load after it), casesTableAvailable
+   stays false and everything keeps behaving exactly like before: cases
+   travel inside the single shared "workspace" row along with feedback,
+   the fleet list, etc. This makes the switch safe to roll out without
+   any coordinated deploy step — it just turns on once the SQL has run. */
 function schedulePushToServer(){
   if(!MULTIUSER_ENABLED || !currentUser) return;
   clearTimeout(serverPushTimer);
   serverPushTimer = setTimeout(pushToServer, 900); // debounced so rapid edits don't hammer the server
 }
+async function pushCaseRow(c){
+  const { error } = await supabaseClient.from('cases').upsert({id:c.id, data:c});
+  if(error) throw error;
+}
+async function deleteCaseRow(id){
+  if(!MULTIUSER_ENABLED || !currentUser || !casesTableAvailable) return;
+  try{
+    const { error } = await supabaseClient.from('cases').delete().eq('id', id);
+    if(error) throw error;
+  }catch(e){
+    console.error('Delete on server failed', e);
+    showToast('Could not delete on the server — it may reappear after the next sync.', 'error');
+  }
+}
 async function pushToServer(){
   if(!MULTIUSER_ENABLED || !currentUser) return;
   try{
+    if(casesTableAvailable && pendingCasePushId){
+      const c = getCase(pendingCasePushId);
+      pendingCasePushId = null;
+      if(c) await pushCaseRow(c);
+    }
     /* The Supabase service_role key (feedbackSync.secretKey) never leaves
        this device: it grants full read/write access bypassing all security
        rules, so it must not end up stored in the shared workspace row where
        any logged-in teammate could read it back out. */
     const feedbackSyncToShare = Object.assign({}, STATE.feedbackSync, {secretKey:''});
-    const payload = {cases:STATE.cases, nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials, yachts:STATE.yachts};
+    const payload = Object.assign(
+      {nextCaseSeq, feedback:STATE.feedback, feedbackSync:feedbackSyncToShare, preferenceListSync:STATE.preferenceListSync, preferenceLists:STATE.preferenceLists, staffInitials:STATE.staffInitials, yachts:STATE.yachts},
+      casesTableAvailable ? {} : {cases: STATE.cases}
+    );
     const { error } = await supabaseClient.from('workspace').update({data: payload}).eq('id','default');
     if(error) throw error;
   }catch(e){
     console.error('Sync to server failed', e);
     showToast('Could not sync to server — your changes are saved locally only for now.', 'error');
+  }
+}
+/* One-time, idempotent: copies workspace.data.cases into the new "cases"
+   table the first time it finds that table empty. Never touches/clears
+   the old copy inside workspace.data — safer to leave provably-redundant
+   data sitting inert than to add a destructive write to the one shared
+   record while transitioning. Safe to call on every startup: no-ops
+   instantly once the table already has rows (or doesn't exist yet). */
+async function migrateWorkspaceCasesToOwnTable(){
+  if(!MULTIUSER_ENABLED) return;
+  try{
+    const { count, error: countErr } = await supabaseClient.from('cases').select('*', {count:'exact', head:true});
+    if(countErr) throw countErr;
+    if(count && count>0) return; // already migrated
+    const { data, error } = await supabaseClient.from('workspace').select('data').eq('id','default').single();
+    if(error) throw error;
+    const oldCases = (data && data.data && Array.isArray(data.data.cases)) ? data.data.cases : [];
+    const rows = oldCases.filter(c=>c && c.id).map(c=>({id:c.id, data:c}));
+    if(!rows.length) return;
+    const { error: insErr } = await supabaseClient.from('cases').upsert(rows);
+    if(insErr) throw insErr;
+    console.log(`Migrated ${rows.length} charter/sale file(s) to the new per-file "cases" table.`);
+  }catch(e){
+    // Most likely the "cases" table doesn't exist yet (supabase-cases-schema.sql
+    // hasn't been run) — expected until then, not a user-facing error.
+    console.error('One-time cases migration check did not complete — still using the shared workspace copy for now.', e);
   }
 }
 async function loadFromServer(){
@@ -466,10 +538,17 @@ async function loadFromServer(){
     const { data, error } = await supabaseClient.from('workspace').select('data').eq('id','default').single();
     if(error) throw error;
     const parsed = data && data.data;
-    if(parsed && Array.isArray(parsed.cases)){
-      STATE.cases = normalizeCases(parsed.cases);
-      nextCaseSeq = parsed.nextCaseSeq || (STATE.cases.length + 1);
+
+    const { data: caseRows, error: casesError } = await supabaseClient.from('cases').select('id,data');
+    if(!casesError && Array.isArray(caseRows)){
+      casesTableAvailable = true;
+      STATE.cases = normalizeCases(caseRows.map(r=>Object.assign({}, r.data, {id:r.id})));
+    }else{
+      casesTableAvailable = false;
+      if(parsed && Array.isArray(parsed.cases)) STATE.cases = normalizeCases(parsed.cases);
     }
+    nextCaseSeq = (parsed && parsed.nextCaseSeq) || (STATE.cases.length + 1);
+
     if(parsed && Array.isArray(parsed.feedback)){
       STATE.feedback = normalizeFeedbackList(parsed.feedback);
     }
@@ -509,6 +588,31 @@ function subscribeToServerChanges(){
       const isTyping = active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName);
       if(isTyping) return;
       loadFromServer().then(ok=>{ if(ok) render(); });
+    })
+    .subscribe();
+  if(!casesTableAvailable) return;
+  /* Cases live in their own table now — a change to one row merges in
+     directly instead of reloading the whole dataset, so saving your own
+     file can never get clobbered by a colleague saving a DIFFERENT one at
+     the same moment (the exact problem this table split exists to fix).
+     Same "don't yank mid-keystroke" guard as the workspace listener above. */
+  supabaseClient
+    .channel('cases-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'cases'}, (payload)=>{
+      const changedId = (payload.new && payload.new.id) || (payload.old && payload.old.id);
+      if(!changedId) return;
+      const active = document.activeElement;
+      const isTyping = active && ['INPUT','TEXTAREA','SELECT'].includes(active.tagName);
+      if(isTyping) return;
+      if(payload.eventType==='DELETE'){
+        STATE.cases = STATE.cases.filter(c=>c.id!==changedId);
+      }else{
+        const incoming = normalizeCase(Object.assign({}, payload.new.data, {id:payload.new.id}));
+        const idx = STATE.cases.findIndex(c=>c.id===changedId);
+        if(idx===-1) STATE.cases.push(incoming); else STATE.cases[idx] = incoming;
+      }
+      persistLocalSnapshot();
+      render();
     })
     .subscribe();
 }
@@ -3571,6 +3675,8 @@ function wireGlobalEvents(){
       STATE.cases = STATE.cases.filter(c=>c.id!==id);
       STATE.view = {tab:'cases', caseId:null, confirmDelete:null};
       persistAndRender();
+      if(pendingCasePushId===id) pendingCasePushId = null; // don't let a still-pending upsert resurrect the row just deleted
+      deleteCaseRow(id);
     }else{
       STATE.view.confirmDelete = id;
       render();
@@ -3583,6 +3689,8 @@ function wireGlobalEvents(){
       STATE.cases = STATE.cases.filter(c=>c.id!==id);
       STATE.view.confirmDelete = null;
       persistAndRender();
+      if(pendingCasePushId===id) pendingCasePushId = null; // don't let a still-pending upsert resurrect the row just deleted
+      deleteCaseRow(id);
     }else{
       STATE.view.confirmDelete = id;
       render();
@@ -4492,7 +4600,7 @@ if(MULTIUSER_ENABLED){
   supabaseClient.auth.onAuthStateChange((event, session)=>{
     if(event === 'SIGNED_IN' && session && session.user){
       currentUser = session.user;
-      loadFromServer().then(()=>{ render(); subscribeToServerChanges(); });
+      migrateWorkspaceCasesToOwnTable().then(loadFromServer).then(()=>{ render(); subscribeToServerChanges(); });
     }else if(event === 'SIGNED_OUT'){
       currentUser = null;
       renderLoginGate();
@@ -4501,7 +4609,7 @@ if(MULTIUSER_ENABLED){
   supabaseClient.auth.getSession().then(({data})=>{
     if(data && data.session && data.session.user){
       currentUser = data.session.user;
-      loadFromServer().then(()=>{ render(); subscribeToServerChanges(); });
+      migrateWorkspaceCasesToOwnTable().then(loadFromServer).then(()=>{ render(); subscribeToServerChanges(); });
     }else{
       renderLoginGate();
     }

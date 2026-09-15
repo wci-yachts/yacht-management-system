@@ -115,12 +115,58 @@ const SUPABASE_ANON_KEY = '...'; // chiave pubblica, ok che sia nel codice
 ```
 Se lasciate vuote/placeholder, l'app funziona in modalità locale (comportamento
 originale). Se compilate, l'app mostra una schermata di login (email/password
-create in Supabase → Authentication → Users) e tutti i dati (pratiche, feedback,
-impostazioni) vengono letti/scritti in un'unica riga condivisa nella tabella
-`workspace` (colonna `data`, di tipo JSONB — contiene l'intero stato dell'app
-serializzato).
+create in Supabase → Authentication → Users).
 
-Lo schema SQL per questa tabella è in `supabase-workspace-schema.sql`.
+**Le pratiche (`STATE.cases`) hanno una tabella tutta loro, una riga per
+pratica** (tabella `cases`, colonna `data` JSONB con l'intero oggetto
+pratica) — schema in `supabase-cases-schema.sql`. Tutto il resto
+(feedback, Fleet, staff initials, impostazioni di sync) resta invece in
+un'unica riga condivisa nella tabella `workspace` (colonna `data` JSONB),
+schema in `supabase-workspace-schema.sql`.
+
+**Perché le pratiche sono separate**: prima anche le pratiche vivevano
+dentro `workspace.data.cases`, insieme a tutto il resto, in un unico
+blocco. Ogni salvataggio — anche di una singola pratica — riscriveva
+l'INTERO blocco condiviso con qualunque cosa ci fosse in memoria in quel
+momento. Se due persone lavoravano contemporaneamente, anche su pratiche
+completamente diverse, chi salvava per ultimo sovrascriveva silenziosamente
+le modifiche dell'altro, perché la sua copia in memoria non conteneva
+ancora l'ultima modifica del collega. Con una riga per pratica, salvare la
+pratica A tocca solo la riga della pratica A — non è più possibile che
+modificarne una cancelli le modifiche di un'altra.
+
+**Come funziona in pratica** (vedi `pushToServer()`/`loadFromServer()`/
+`subscribeToServerChanges()`/`migrateWorkspaceCasesToOwnTable()`):
+- Ad ogni modifica di un campo pratica, l'unica riga che viene
+  aggiornata su Supabase (`cases` upsert) è quella della pratica
+  effettivamente aperta in quel momento (`STATE.view.caseId`, catturato
+  da `tryPersistLocal()`), non l'intero elenco.
+- Il caricamento (`loadFromServer()`) legge tutte le pratiche dalla
+  tabella `cases` con una query separata, non più da `workspace.data.cases`.
+- L'aggiornamento in tempo reale (`subscribeToServerChanges()`) ascolta i
+  cambi sulla tabella `cases` riga per riga: se un collega salva una
+  pratica diversa da quella che hai aperta tu, la ricevi e la integri
+  subito nel tuo `STATE.cases` senza dover ricaricare tutto — stesso
+  principio "non toccare nulla mentre l'utente sta scrivendo in un campo"
+  già usato per `workspace`.
+- **Migrazione automatica, senza downtime**: `casesTableAvailable`
+  (variabile globale) dice se la tabella `cases` esiste già su questo
+  progetto Supabase. Finché è `false` (script SQL non ancora eseguito),
+  tutto continua a funzionare esattamente come prima (pratiche dentro
+  `workspace.data.cases`). Al primo caricamento dopo aver eseguito
+  `supabase-cases-schema.sql`, `migrateWorkspaceCasesToOwnTable()` copia
+  le pratiche esistenti nella nuova tabella (controllo idempotente: se la
+  tabella ha già righe, non fa nulla — non sovrascrive mai), e da quel
+  momento l'app passa al nuovo sistema. La vecchia copia dentro
+  `workspace.data.cases` NON viene mai cancellata automaticamente (scelta
+  deliberata — meglio lasciare un dato ridondante ma innocuo che
+  rischiare una scrittura distruttiva sull'unica copia condivisa durante
+  la transizione).
+- **Limite noto**: la funzione di importazione JSON (`handleImport()` —
+  pulsante rimosso dall'interfaccia su richiesta esplicita, JS tenuto
+  invariato, vedi promemoria) sostituisce `STATE.cases` in blocco e non
+  passa dalla vista scheda-pratica, quindi non aggiorna la tabella
+  `cases` riga per riga. Irrilevante finché quel pulsante resta rimosso.
 
 **Importante**: la chiave `service_role` di Supabase (usata SOLO per la
 sincronizzazione dei feedback, sezione Feedback → Sync) NON viene mai salvata
