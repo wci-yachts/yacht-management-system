@@ -311,6 +311,7 @@ tr.drag-insert-after{box-shadow: inset 0 -3px 0 0 var(--brass);}
 .stat-card.danger .num{color:var(--danger);}
 .stat-card.warn .num{color:var(--warn);}
 .stat-card .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;margin-top:2px;}
+.stat-info{display:inline-block;margin-left:3px;font-size:11px;color:var(--teal-light);cursor:help;font-weight:700;}
 
 .toast{
   position:fixed;bottom:22px;right:22px;background:var(--navy-950);color:var(--white);
@@ -1853,6 +1854,12 @@ function renderFleet(){
   `;
 }
 
+/* A stat-card label with a hover-explained "ⓘ" — native title attribute,
+   same lightweight tooltip mechanism used everywhere else in the app
+   (status dots, badges, etc.), no extra markup/JS needed. */
+function statLbl(text, info){
+  return `<div class="lbl">${esc(text)} <span class="stat-info" title="${esc(info)}">ⓘ</span></div>`;
+}
 function renderStatistics(){
   const groups = {}; // year -> rows[]
   let noYear = [];
@@ -1953,10 +1960,10 @@ function renderStatistics(){
   }else{
     body = `
     <div class="dash-grid">
-      <div class="stat-card"><div class="num">${STATE.cases.length}</div><div class="lbl">Charter files</div></div>
-      <div class="stat-card"><div class="num">${fmtMoney(grand.charterRate)}</div><div class="lbl">Total charter rate</div></div>
-      <div class="stat-card"><div class="num">${fmtMoney(grand.retailCommission)}</div><div class="lbl">Retail Broker commission</div></div>
-      <div class="stat-card"><div class="num">${fmtMoney(grand.centralCommission)}</div><div class="lbl">Central Agent commission</div></div>
+      <div class="stat-card"><div class="num">${STATE.cases.length}</div>${statLbl('Charter files', 'Total number of Charter and Sale files currently in the system.')}</div>
+      <div class="stat-card"><div class="num">${fmtMoney(grand.charterRate)}</div>${statLbl('Total charter rate', 'Sum of the Charter Rate (Sale Price on Sale files) across every file, before VAT, APA, delivery fee and commissions.')}</div>
+      <div class="stat-card"><div class="num">${fmtMoney(grand.retailCommission)}</div>${statLbl('Retail Broker commission', 'Sum of the commission earned on files where the role is Retail Broker.')}</div>
+      <div class="stat-card"><div class="num">${fmtMoney(grand.centralCommission)}</div>${statLbl('Central Agent commission', 'Sum of the commission earned on files where the role is Central Agent.')}</div>
     </div>`;
   }
 
