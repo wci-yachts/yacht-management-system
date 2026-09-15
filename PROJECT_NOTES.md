@@ -257,9 +257,16 @@ compilabile, niente è duplicato.
     mano.
 - **`hiddenPayments` di default**: `newCase('charter')` nasconde già
   all'apertura i pagamenti di fine-charter meno frequenti (crew tip, APA
-  refund, le due righe "APA Balance") — si riattivano con "↺" come
-  qualunque altro pagamento rimosso. Le pratiche già esistenti non vengono
-  toccate retroattivamente.
+  refund, le tre righe "APA Balance") — si riattivano con "↺" come
+  qualunque altro pagamento rimosso. Per le tre righe "APA Balance"
+  (`apa_balance_client`/`apa_balance_owner`/`apa_balance_ca`) questo
+  default viene anche applicato retroattivamente in `normalizeCase()` —
+  se una pratica (già esistente prima che questo default esistesse) non
+  ha MAI una scelta esplicita registrata per una di queste chiavi, viene
+  impostata a nascosta ad ogni caricamento; se invece è già stata
+  esplicitamente ripristinata con "↺" in passato, quella scelta non viene
+  toccata. Le altre voci nascoste di default (crew tip, APA refund) non
+  hanno questa migrazione retroattiva.
 - **Reconciliation** (`buildLedger()`) mostra solo i pagamenti con la
   spunta "pagato" confermata (non quelli previsti/in attesa), ordinati per
   data di pagamento effettiva — non per scadenza.

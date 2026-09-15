@@ -705,7 +705,7 @@ function normalizeCase(raw){
   c.attachments = Object.assign({}, base.attachments, (raw&&raw.attachments)||{});
   c.attachments.addendums = Array.isArray(c.attachments.addendums) ? c.attachments.addendums : [];
   c.customPayments = Array.isArray(raw && raw.customPayments) ? raw.customPayments : [];
-  c.hiddenPayments = (raw && typeof raw.hiddenPayments==='object' && raw.hiddenPayments) ? raw.hiddenPayments : {};
+  c.hiddenPayments = Object.assign({}, (raw && typeof raw.hiddenPayments==='object' && raw.hiddenPayments) || {});
   c.paymentOrder = Array.isArray(raw && raw.paymentOrder) ? raw.paymentOrder : [];
   c.customPayments = (c.customPayments||[]).map(cp=> cp.id ? cp : Object.assign({}, cp, {id: uid()}));
   c.paymentOverrides = (raw && typeof raw.paymentOverrides==='object' && raw.paymentOverrides) ? raw.paymentOverrides : {};
@@ -713,6 +713,17 @@ function normalizeCase(raw){
   c.payments = (raw && typeof raw.payments==='object' && raw.payments) ? raw.payments : {};
   c.type = (raw && raw.type==='sale') ? 'sale' : 'charter';
   c.saleDueDates = (raw && typeof raw.saleDueDates==='object' && raw.saleDueDates) ? raw.saleDueDates : {};
+  /* Charter files created before "APA Balance from Client / to Owner / to
+     Central Agent" defaulted to hidden (see newCase()) never got that
+     default recorded — without this they'd show up on every pre-existing
+     file even though new files hide them. Backfill it, but only for a key
+     that was never explicitly set either way, so a deliberate ↺ restore
+     someone already did on an old file stays untouched. */
+  if(c.type!=='sale'){
+    ['apa_balance_client','apa_balance_owner','apa_balance_ca'].forEach(k=>{
+      if(!(k in c.hiddenPayments)) c.hiddenPayments[k] = true;
+    });
+  }
   return c;
 }
 function normalizeCases(list){
