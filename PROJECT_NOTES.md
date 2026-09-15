@@ -286,6 +286,21 @@ compilabile, niente è duplicato.
   "↺" imposta sempre `false` esplicito, mai `delete` — cancellare la
   chiave farebbe ricadere sul `defaultHidden`, vanificando il ripescaggio
   quando il default è ancora attivo (es. `lateSign` ancora vero).
+- **Referral / Sub-commission** (Brokers & Commission, sotto Central
+  Agent): terzo broker facoltativo, del tutto indipendente dal ruolo
+  Retail/Central Agent della pratica — una spunta (`c.referralEnabled`)
+  che, se attiva, mostra Nome/Agenzia/Percentuale/Totale
+  (`referralBrokerName`/`referralAgencyName`/`referralCommissionPct`/
+  `referralCommissionOverride`, stesso pattern % + override di
+  Retail/CA) e aggiunge alla Payment Schedule la riga preimpostata
+  "Subcommission to Referral" (key `referral_commission`, sempre
+  Outgoing). `calc()` calcola `referralComm` allo stesso modo di
+  `retailComm`/`caComm` ma **non viene mai sommato nei totali esistenti**
+  (Statistics, riepiloghi per anno, ecc.) — è un dato a sé, pensato per
+  essere eventualmente ripreso in futuro in una statistica dedicata.
+  Disattivare la spunta rimuove la riga dallo schedule (non è nello
+  stato `always`) ma non cancella i valori compilati, che riappaiono
+  se la si riattiva.
 - **Reconciliation** (`buildLedger()`) mostra solo i pagamenti con la
   spunta "pagato" confermata (non quelli previsti/in attesa), ordinati per
   data di pagamento effettiva — non per scadenza.

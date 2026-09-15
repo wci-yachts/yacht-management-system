@@ -659,6 +659,10 @@ function newCase(fileType){
     contractSignDate: toISODate(new Date()),
     retailBrokerName: '', retailAgencyName: 'West Coast International', retailCommissionPct: type==='sale' ? '' : 15, retailCommissionOverride: null, retailCommissionNote: '',
     caBrokerName: '', caAgencyName: '', caCommissionPct: type==='sale' ? '' : 5, caCommissionOverride: null, caCommissionNote: '',
+    /* Optional third-party referral broker paid a sub-commission at the
+       end of the file — independent of our own Retail/Central Agent role
+       above, never factored into rate/VAT/APA or their commissions. */
+    referralEnabled: false, referralBrokerName: '', referralAgencyName: '', referralCommissionPct: '', referralCommissionOverride: null,
     charterRate: '',
     vatPct: 22, vatOverride: null,
     vatViaAgency: false, // true = VAT excluded from Balance to Owner/Central Agent and paid to the Shipping Agency separately instead — varies by boat
@@ -876,7 +880,8 @@ function calc(c){
   const delivery = num(c.deliveryFee);
   const retailComm = c.retailCommissionOverride!==null && c.retailCommissionOverride!=='' ? num(c.retailCommissionOverride) : rate*num(c.retailCommissionPct)/100;
   const caComm = c.caCommissionOverride!==null && c.caCommissionOverride!=='' ? num(c.caCommissionOverride) : rate*num(c.caCommissionPct)/100;
-  return {rate,vatAmt,apaAmt,delivery,retailComm,caComm};
+  const referralComm = c.referralCommissionOverride!==null && c.referralCommissionOverride!=='' ? num(c.referralCommissionOverride) : rate*num(c.referralCommissionPct)/100;
+  return {rate,vatAmt,apaAmt,delivery,retailComm,caComm,referralComm};
 }
 
 /* ---- payment schedule generation ----
@@ -893,7 +898,7 @@ function calc(c){
    10. VAT to Shipping Agency
 */
 function buildScheduleItemsCharter(c){
-  const {rate,vatAmt,apaAmt,delivery,retailComm,caComm} = calc(c);
+  const {rate,vatAmt,apaAmt,delivery,retailComm,caComm,referralComm} = calc(c);
   const isRetail = c.role==='retail';
   const depositDue = addDays(c.contractSignDate, 5);
   const balanceDue = subMonths(c.charterStartDate, 1);
@@ -1137,6 +1142,17 @@ function buildScheduleItemsCharter(c){
     note:'Unused APA balance returned to the client',
     always:true, manualAmount:true, manualField:'apaRefundOutAmount', direction:'out', ledger:true
   });
+  /* Optional third-party referral broker (Brokers & Commission → Referral
+     / Sub-commission tick) — entirely separate from our own Retail/Central
+     Agent role above, doesn't feed any other total. Only appears when the
+     tick is on. */
+  list.push({
+    key:'referral_commission', label:'Subcommission to Referral', party:'To Referral Broker',
+    amount: referralComm,
+    due: c.charterEndDate,
+    note:'Sub-commission to a referral broker — independent of our own role on this file',
+    visible: !!c.referralEnabled, direction:'out', ledger:true
+  });
   list.push({
     key:'vat_agency', label:'VAT to Shipping Agency', party:'To Shipping Agency',
     amount: vatAmt,
@@ -1158,7 +1174,7 @@ function buildScheduleItemsCharter(c){
 }
 
 function buildScheduleItemsSale(c){
-  const {rate, retailComm, caComm} = calc(c);
+  const {rate, retailComm, caComm, referralComm} = calc(c);
   const isRetail = c.role==='retail';
   const dueFor = key => (c.saleDueDates && c.saleDueDates[key]) || '';
   const depositPct = (c.saleDepositPct!=='' && c.saleDepositPct!==null && c.saleDepositPct!==undefined) ? num(c.saleDepositPct) : 50;
@@ -1216,6 +1232,17 @@ function buildScheduleItemsSale(c){
     due: dueFor('seller_balance'), manualDue:true,
     note: balanceLabel,
     visible: !isRetail, direction:'out', ledger:true
+  });
+  /* Optional third-party referral broker (Brokers & Commission → Referral
+     / Sub-commission tick) — entirely separate from our own Retail/Central
+     Agent role above, doesn't feed any other total. Only appears when the
+     tick is on. */
+  list.push({
+    key:'referral_commission', label:'Subcommission to Referral', party:'To Referral Broker',
+    amount: referralComm,
+    due: dueFor('referral_commission'), manualDue:true,
+    note:'Sub-commission to a referral broker — independent of our own role on this file',
+    visible: !!c.referralEnabled, direction:'out', ledger:true
   });
   return list;
 }
@@ -2861,7 +2888,7 @@ function renderPreferenceListDetail(id){
 function renderCaseDetail(id){
   const c = getCase(id);
   if(!c) return emptyState('Charter file not found','It may have been deleted.');
-  const {rate,vatAmt,apaAmt,retailComm,caComm} = calc(c);
+  const {rate,vatAmt,apaAmt,retailComm,caComm,referralComm} = calc(c);
   const schedule = buildPaymentSchedule(c);
   const hiddenPresets = getHiddenPresetPayments(c);
   const unifiedRows = getUnifiedScheduleRows(c);
@@ -3034,6 +3061,18 @@ function renderCaseDetail(id){
         <div class="field"><label class="field-label">Total (€) ${c.caCommissionOverride!==null && c.caCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="caCommissionOverride" data-money placeholder="${fmtMoneyPlain(caComm)}" value="${c.caCommissionOverride!==null?esc(c.caCommissionOverride):''}"></div>
       </div>
       <div class="field"><label class="field-label">Notes</label><input type="text" data-f="caCommissionNote" value="${esc(c.caCommissionNote)}" placeholder="Any internal note about this broker/commission"></div>
+      <div class="divider-label">Referral / Sub-commission</div>
+      <div class="checklist-item">
+        <input type="checkbox" id="referral-enabled" data-referral-toggle ${c.referralEnabled?'checked':''}>
+        <label for="referral-enabled">This file pays a sub-commission to a referral broker — separate from our own Retail/Central Agent role above, doesn't affect any other total. Adds "Subcommission to Referral" to the Payment Schedule below.</label>
+      </div>
+      ${c.referralEnabled ? `
+      <div class="row c4">
+        <div class="field"><label class="field-label">Broker Name</label><input type="text" data-f="referralBrokerName" value="${esc(c.referralBrokerName)}"></div>
+        <div class="field"><label class="field-label">Agency Name</label><input type="text" data-f="referralAgencyName" list="dl-agency-names" value="${esc(c.referralAgencyName)}"></div>
+        <div class="field"><label class="field-label">Commission %</label><input type="text" inputmode="decimal" data-f="referralCommissionPct" value="${esc(c.referralCommissionPct)}"></div>
+        <div class="field"><label class="field-label">Total (€) ${c.referralCommissionOverride!==null && c.referralCommissionOverride!=='' ? '<span class=\"override-flag\">· edited</span>':''}</label><input type="text" inputmode="decimal" data-f="referralCommissionOverride" data-money placeholder="${fmtMoneyPlain(referralComm)}" value="${c.referralCommissionOverride!==null?esc(c.referralCommissionOverride):''}"></div>
+      </div>` : ''}
     </div>
   </div>
 
@@ -3961,6 +4000,11 @@ function wireGlobalEvents(){
     const vatAgencyToggle = app.querySelector('[data-vat-agency]');
     if(vatAgencyToggle) vatAgencyToggle.addEventListener('change', ()=>{
       c.vatViaAgency = vatAgencyToggle.checked;
+      persistAndRender();
+    });
+    const referralToggle = app.querySelector('[data-referral-toggle]');
+    if(referralToggle) referralToggle.addEventListener('change', ()=>{
+      c.referralEnabled = referralToggle.checked;
       persistAndRender();
     });
     const copyPrefWciBtn = document.getElementById('btn-copy-preflist-wci');
