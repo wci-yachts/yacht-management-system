@@ -11,7 +11,13 @@ più persone).
 - `index.html` — l'intera applicazione (un solo file, tutto incluso: HTML, CSS, JS)
 
 ## Moduli principali dell'app
-- **Dashboard**: promemoria pagamenti in scadenza/scaduti
+- **Dashboard**: promemoria pagamenti in scadenza/scaduti — usa
+  `allPaymentRows(c)`, che unisce pagamenti preimpostati **e** quelli
+  aggiunti a mano ("+ Add extra payment"), non solo `buildPaymentSchedule()`
+  da solo (che copre solo i preimpostati) — stesso helper usato dal
+  conteggio "Payments" e dall'ordinamento in Charter Files, altrimenti un
+  pagamento extra pending/scaduto non compariva né nei promemoria né nel
+  conteggio.
 - **Charter Files**: elenco pratiche, ordinabile, filtrabile, con bollino colorato di stato,
   raggruppato in sezioni pieghevoli per anno — **anno della data di inizio charter**
   (`c.charterStartDate`; per le Sale, che non hanno date charter, usa `c.contractSignDate`),

@@ -1370,9 +1370,8 @@ function renderView(){
 function renderDashboard(){
   const allPayments = [];
   STATE.cases.forEach(c=>{
-    buildPaymentSchedule(c).forEach(p=>{
-      const st = paymentStatus(c,p.key);
-      allPayments.push({...p, caseNumber:c.caseNumber, clientName:c.clientName, yachtName:c.yachtName, caseId:c.id, status:st.status, paidDate:st.paidDate,
+    allPaymentRows(c).forEach(p=>{
+      allPayments.push({...p, caseNumber:c.caseNumber, clientName:c.clientName, yachtName:c.yachtName, caseId:c.id,
         role:c.role, retailBrokerName:c.retailBrokerName, retailAgencyName:c.retailAgencyName});
     });
   });
@@ -1450,10 +1449,27 @@ function sortCases(cases, field, dir){
     return 0;
   });
 }
+/* Every payment on a file — preset schedule rows AND manually-added extra
+   payments — flattened into one consistent shape, for anywhere that needs
+   to count or list pending/overdue payments across the WHOLE schedule
+   (Dashboard reminders, Charter Files list + its sort). buildPaymentSchedule()
+   alone only covers the preset rows, which used to make an extra payment
+   invisible to overdue/pending counts and Dashboard reminders entirely. */
+function allPaymentRows(c){
+  const fixed = buildPaymentSchedule(c).map(p=>{
+    const st = paymentStatus(c, p.key);
+    return {key:p.key, label:p.label, party:p.party, due:p.due, direction:p.direction, amount:p.amount, status:st.status, paidDate:st.paidDate};
+  });
+  const custom = c.customPayments.map(cp=>({
+    key:'custom:'+cp.id, label:cp.description||'Extra payment', party:cp.direction==='in'?'Incoming':'Outgoing',
+    due:cp.due, direction:cp.direction, amount: cp.amount!=='' ? num(cp.amount) : null,
+    status: cp.status||'pending', paidDate: cp.paidDate||''
+  }));
+  return [...fixed, ...custom];
+}
 function paymentsOverdueCount(c){
   try{
-    const sched = buildPaymentSchedule(c);
-    return sched.filter(p=>paymentStatus(c,p.key).status!=='paid' && daysFromToday(p.due)!==null && daysFromToday(p.due)<0).length;
+    return allPaymentRows(c).filter(p=>p.status!=='paid' && daysFromToday(p.due)!==null && daysFromToday(p.due)<0).length;
   }catch(e){ return -1; }
 }
 
@@ -1564,8 +1580,8 @@ function renderCasesTable(cases, sortField, sortDir){
     <tbody>
       ${cases.map(c=>{
         try{
-          const sched = buildPaymentSchedule(c);
-          const pending = sched.filter(p=>paymentStatus(c,p.key).status!=='paid');
+          const sched = allPaymentRows(c);
+          const pending = sched.filter(p=>p.status!=='paid');
           const overdue = pending.filter(p=>daysFromToday(p.due)!==null && daysFromToday(p.due)<0);
           return `<tr class="clickable" data-open-case="${c.id}">
             <td>${renderStatusChip(c, false)}</td>
