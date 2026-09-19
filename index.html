@@ -1649,7 +1649,8 @@ function renderCasesList(){
   const q = (STATE.view.query||'').toLowerCase();
   const roleFilter = STATE.view.roleFilter||'';
   let cases = STATE.cases.filter(c=>{
-    const matchQ = !q || (c.caseNumber||'').toLowerCase().includes(q) || (c.clientName||'').toLowerCase().includes(q);
+    const matchQ = !q || (c.caseNumber||'').toLowerCase().includes(q) || (c.clientName||'').toLowerCase().includes(q)
+      || (c.yachtName||'').toLowerCase().includes(q) || (c.cruisingAreas||[]).some(a=>(a||'').toLowerCase().includes(q));
     const matchR = !roleFilter || c.role===roleFilter;
     return matchQ && matchR;
   });
@@ -1693,7 +1694,7 @@ function renderCasesList(){
 
   return `
     <div class="search-bar no-print">
-      <input type="text" id="search-q" placeholder="Search by case number or client…" value="${esc(STATE.view.query||'')}">
+      <input type="text" id="search-q" placeholder="Search by case number, client, yacht or cruising area…" value="${esc(STATE.view.query||'')}">
       <select id="filter-role">
         <option value="">All roles</option>
         <option value="retail" ${roleFilter==='retail'?'selected':''}>Retail Broker</option>

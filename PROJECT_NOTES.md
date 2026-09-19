@@ -26,7 +26,11 @@ più persone).
   partenza a gennaio successivo). Sezioni aperte di default — a differenza di Statistics →
   By Year che parte chiuso, qui è la lista di lavoro quotidiana. L'ordinamento resta unico
   e globale su tutti i gruppi (cliccare un'intestazione di colonna in un anno riordina
-  anche gli altri).
+  anche gli altri). La ricerca cerca anche su yacht e cruising area, non solo su
+  numero pratica/cliente — utile per trovare quale pratica ha ancora un vecchio
+  valore di cruising area da ripulire (es. dopo aver separato un'area combinata
+  in due voci), dato che i suggerimenti del campo Cruising Area sono dedotti
+  dalle pratiche stesse e non da una lista modificabile a parte.
 - **Scheda pratica** (Charter o Sale — due tipi diversi con campi/logica differenti):
   - Dati generali, ruolo (Retail Broker / Central Agent), stato pratica
   - Finanziari: charter rate/sale price, VAT, APA, delivery fee, commissioni
