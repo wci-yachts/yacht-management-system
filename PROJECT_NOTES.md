@@ -91,8 +91,14 @@ date charter).
   pratica firmata a dicembre per un charter a gennaio successivo) — un
   bucket "Gen" unico le avrebbe confuse insieme.
 - **Most Popular Cruising Areas**: barre orizzontali, conteggio per
-  `c.cruisingArea`, altezza del grafico proporzionale al numero di aree
-  per restare leggibile.
+  `c.cruisingAreas` (array, non più stringa singola — un charter può
+  toccare più zone: ognuna conta separatamente, non come un'unica voce
+  combinata "Zona A + Zona B"), altezza del grafico proporzionale al
+  numero di aree per restare leggibile. UI nella scheda pratica: tag
+  rimovibili + campo di testo con autocomplete (`dl-cruising-areas`),
+  Invio o click fuori dal campo per aggiungere. Le pratiche create prima
+  di questa modifica avevano `cruisingArea` (stringa singola) — migrate
+  automaticamente in `normalizeCase()` alla prima apertura.
 - **Yacht Size Chosen**: lunghezza/rig/hull vengono da `STATE.yachts`
   (Fleet, vedi sotto) via `findYacht(c.yachtName)` — nessun campo
   duplicato sulla pratica. Barre impilate per fascia di lunghezza
@@ -102,12 +108,12 @@ date charter).
   sono indipendenti). Una pratica il cui yacht non è in Fleet, o è in
   Fleet ma senza lunghezza/rig/hull compilati, non compare in questo
   grafico.
-- **Boats by Role**: due barre — numero di yacht **distinti** (per nome)
+- **Yachts by Role**: due barre — numero di yacht **distinti** (per nome)
   operati con ruolo Central Agent vs Retail Broker
   (`boatsByRoleCounts()`). Uno stesso yacht comparso in entrambi i ruoli
   nel tempo conta una volta in ciascuna barra — non è una ripartizione
   della flotta, sono due conteggi indipendenti.
-- **Charters per Boat (Central Agent)**: barre verticali, nome barca
+- **Charters per Yacht (Central Agent)**: barre verticali, nome barca
   sull'asse orizzontale, numero di pratiche per quella barca sull'asse
   verticale (`chartersPerCentralBoat()`, ordinate per conteggio
   decrescente) — solo pratiche a ruolo Central Agent (in Retail lo yacht

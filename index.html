@@ -758,7 +758,7 @@ function newCase(fileType){
     charterEndTime: '12:00',
     departureLocation: '',
     arrivalLocation: '',
-    cruisingArea: '',
+    cruisingAreas: [], // multiple areas visited on one charter — each counted separately in Statistics → Charts
     clientNationality: '',
     contractSignDate: toISODate(new Date()),
     retailBrokerName: '', retailAgencyName: 'West Coast International', retailCommissionPct: type==='sale' ? '' : 15, retailCommissionOverride: null, retailCommissionNote: '',
@@ -821,6 +821,12 @@ function normalizeCase(raw){
   c.payments = (raw && typeof raw.payments==='object' && raw.payments) ? raw.payments : {};
   c.type = (raw && raw.type==='sale') ? 'sale' : 'charter';
   c.saleDueDates = (raw && typeof raw.saleDueDates==='object' && raw.saleDueDates) ? raw.saleDueDates : {};
+  /* cruisingArea (single free-text string) -> cruisingAreas (array) — a
+     charter can cover more than one area, each counted separately in
+     Statistics → Charts rather than as one combined "Area A + Area B"
+     bucket. Old files only ever had the singular field. */
+  c.cruisingAreas = Array.isArray(raw && raw.cruisingAreas) ? raw.cruisingAreas.filter(Boolean)
+    : ((raw && raw.cruisingArea) ? [raw.cruisingArea] : []);
   /* Charter files created before "APA Balance from Client / to Owner / to
      Central Agent" defaulted to hidden (see newCase()) never got that
      default recorded — without this they'd show up on every pre-existing
@@ -2293,9 +2299,11 @@ function monthlyCharterCounts(cases){
 function cruisingAreaCounts(cases){
   const counts = {};
   cases.forEach(c=>{
-    const area = (c.cruisingArea||'').trim();
-    if(!area) return;
-    counts[area] = (counts[area]||0)+1;
+    (c.cruisingAreas||[]).forEach(area=>{
+      area = (area||'').trim();
+      if(!area) return;
+      counts[area] = (counts[area]||0)+1;
+    });
   });
   return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
 }
@@ -2444,8 +2452,8 @@ function renderStatsCharts(dateBasis){
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Yacht Size Chosen (Rig &amp; Hull)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-yacht-size"></canvas></div></div></div>
     </div>
     <div class="row c2">
-      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Boats by Role</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-boats-role"></canvas></div></div></div>
-      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Charters per Boat (Central Agent)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-boats-central"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Yachts by Role</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-boats-role"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Charters per Yacht (Central Agent)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-boats-central"></canvas></div></div></div>
     </div>
     <div class="row c2">
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Clients</span>&nbsp; Nationality</h2></div><div class="card-body"><div style="height:280px;"><canvas id="chart-nationality"></canvas></div></div></div>
@@ -3177,7 +3185,14 @@ function renderCaseDetail(id){
             ${COUNTRY_LIST.map(v=>`<option value="${esc(v)}" ${c.clientNationality===v?'selected':''}>${esc(v)}</option>`).join('')}
           </select>
         </div>
-        ${c.type==='sale' ? `<div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>` : `<div class="field"><label class="field-label">Cruising Area</label><input type="text" data-f="cruisingArea" list="dl-cruising-areas" value="${esc(c.cruisingArea)}" placeholder="e.g. Balearics"></div>`}
+        ${c.type==='sale' ? `<div class="field"><label class="field-label">Contract Sign Date</label><input type="date" data-f="contractSignDate" value="${esc(c.contractSignDate)}"></div>` : `
+        <div class="field">
+          <label class="field-label">Cruising Area(s)</label>
+          ${(c.cruisingAreas||[]).length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">
+            ${c.cruisingAreas.map((area,idx)=>`<span style="display:inline-flex;align-items:center;gap:2px;background:var(--paper-dim);border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 10px;font-size:12px;white-space:nowrap;">${esc(area)}<button type="button" data-remove-cruising-area="${idx}" title="Remove" style="border:none;background:none;cursor:pointer;color:var(--ink-soft);font-size:13px;line-height:1;padding:2px;">×</button></span>`).join('')}
+          </div>` : ''}
+          <input type="text" id="cruising-area-input" list="dl-cruising-areas" placeholder="Type an area, press Enter — a charter visiting more than one area counts each separately in Statistics">
+        </div>`}
       </div>
       ${c.type==='sale' ? '' : `
       <div class="row c4">
@@ -3608,7 +3623,7 @@ function renderSharedDatalists(){
   const uniqueSorted = arr => Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
   const agencyNames = uniqueSorted(STATE.cases.flatMap(c=>[c.retailAgencyName, c.caAgencyName]));
   const locations = uniqueSorted(STATE.cases.flatMap(c=>[c.departureLocation, c.arrivalLocation]));
-  const cruisingAreas = uniqueSorted(STATE.cases.map(c=>c.cruisingArea));
+  const cruisingAreas = uniqueSorted(STATE.cases.flatMap(c=>c.cruisingAreas||[]));
   const yachtNames = uniqueSorted(STATE.yachts.map(y=>y.name));
   return `
     <datalist id="dl-agency-names">${agencyNames.map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
@@ -4226,6 +4241,25 @@ function wireGlobalEvents(){
       }
       persistAndRender();
     });
+    const cruisingAreaInput = document.getElementById('cruising-area-input');
+    if(cruisingAreaInput){
+      const addCruisingAreaFromInput = () => {
+        const val = cruisingAreaInput.value.trim();
+        if(!val) return;
+        if(!c.cruisingAreas) c.cruisingAreas = [];
+        if(!c.cruisingAreas.some(a=>a.toLowerCase()===val.toLowerCase())) c.cruisingAreas.push(val);
+        cruisingAreaInput.value = '';
+        persistAndRender();
+      };
+      cruisingAreaInput.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); addCruisingAreaFromInput(); }
+      });
+      cruisingAreaInput.addEventListener('blur', addCruisingAreaFromInput);
+    }
+    app.querySelectorAll('[data-remove-cruising-area]').forEach(el=>el.addEventListener('click', ()=>{
+      c.cruisingAreas.splice(+el.dataset.removeCruisingArea, 1);
+      persistAndRender();
+    }));
     const addBtn = app.querySelector('[data-addendum-add]');
     if(addBtn) addBtn.addEventListener('click', ()=>{
       c.attachments.addendums.push({name:'', done:false});
