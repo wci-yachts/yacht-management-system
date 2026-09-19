@@ -47,26 +47,49 @@ più persone).
   data firma contratto e data inizio charter, lunghezza charter in giorni,
   budget cliente — solo pratiche Charter, le Sale non hanno charter
   start/end date), **Charts** (vedi sotto), Cash Flow (esportazione movimenti
-  per periodo), By Year (riepilogo per anno, dedotto dalle ultime 4 cifre del
-  numero pratica)
+  per periodo), By Year (riepilogo per anno).
+
+  **"Group by" (`STATE.view.statsDateBasis`, 'charter' di default)** —
+  selettore visibile solo su By Year e Charts: decide quale ANNO REALE
+  usare per raggruppare/filtrare, 'charter' (`charterStartDate`, con
+  fallback a `contractSignDate` per le Sale) oppure 'signed'
+  (`contractSignDate`) — vedi `statsYearOf()`. **Non** usa più l'anno
+  dedotto dal numero pratica (`yearFromCaseNumber`, rimossa): il numero
+  pratica si assegna all'apertura e può non corrispondere a nessuna delle
+  due date reali (es. pratica numerata "150-2026" ma firmata a dicembre
+  2026 per un charter a gennaio 2027 — con "Group by: Charter Date"
+  finisce giustamente sotto "2027", con "Contract Sign Date" sotto
+  "2026") — la vecchia logica basata sul numero pratica creava confusione
+  proprio in questi casi (pratica "sparita" dall'anno che ci si aspettava).
 
 ### Statistics → Charts
 Usa **Chart.js** (via CDN, `chart.umd.min.js`) — unica libreria esterna
 nel progetto oltre a Supabase. Tutti i grafici sono generati da
-`renderStatsCharts()` (dati) + `initStatsCharts()` (istanze Chart.js create
-sui `<canvas>` appena inseriti nel DOM da `render()`), e includono solo
-pratiche **Charter** (le Sale non hanno cruising area / date charter).
+`renderStatsCharts(dateBasis)` (dati) + `initStatsCharts()` (istanze
+Chart.js create sui `<canvas>` appena inseriti nel DOM da `render()`), e
+includono solo pratiche **Charter** (le Sale non hanno cruising area /
+date charter).
 
 - **Selettore anno** (`STATE.view.chartsYear`, "All years" di default):
-  filtra TUTTI i grafici della scheda, usando lo stesso anno derivato dal
-  numero pratica (`yearFromCaseNumber`) già usato da "By Year" — così
-  l'insieme di pratiche resta coerente nelle varie schede di Statistics.
-- **Booking Trend** / **Most Chartered Periods**: bucket per mese
-  (Gen-Dic) usando solo il *mese* della data (non l'anno specifico) —
-  Booking Trend conta il mese di `contractSignDate`, Most Chartered
-  Periods conta ogni mese toccato dall'intervallo
-  `charterStartDate`-`charterEndDate` (`monthsOverlapped()` — un charter
-  che scavalca il cambio mese/anno conta in entrambi i mesi).
+  filtra TUTTI i grafici della scheda, usando l'anno secondo il "Group by"
+  scelto sopra (`statsYearOf()`, condiviso con By Year) — così l'insieme
+  di pratiche resta coerente nelle varie schede di Statistics. Cambiare
+  "Group by" azzera `chartsYear` (l'anno selezionato potrebbe non esistere
+  più sotto l'altra base).
+- **Most Chartered Periods**: bucket per mese (Gen-Dic) usando solo il
+  *mese* della data, non l'anno specifico — conta ogni mese toccato
+  dall'intervallo `charterStartDate`-`charterEndDate`
+  (`monthsOverlapped()` — un charter che scavalca il cambio mese/anno
+  conta in entrambi i mesi).
+- **Booking Trend**: a differenza degli altri grafici mensili, le
+  etichette portano anche l'anno (es. "Gen 2027", non solo "Gen") —
+  `monthlyBookingCountsByYearMonth()`, bucket sparsi ordinati
+  cronologicamente per `contractSignDate`, un mese per ogni combinazione
+  anno-mese realmente presente. Necessario perché, specie con "All years"
+  o con "Group by: Charter Date", le date di firma dietro un singolo
+  gruppo/anno possono benissimo cadere in anni solari diversi (una
+  pratica firmata a dicembre per un charter a gennaio successivo) — un
+  bucket "Gen" unico le avrebbe confuse insieme.
 - **Most Popular Cruising Areas**: barre orizzontali, conteggio per
   `c.cruisingArea`, altezza del grafico proporzionale al numero di aree
   per restare leggibile.
