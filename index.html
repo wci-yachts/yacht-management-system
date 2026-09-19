@@ -1694,7 +1694,7 @@ function renderCasesList(){
 
   return `
     <div class="search-bar no-print">
-      <input type="text" id="search-q" placeholder="Search by case number, client, yacht or cruising area…" value="${esc(STATE.view.query||'')}">
+      <input type="text" id="search-q" style="max-width:320px;" placeholder="Search case #, client, yacht or area…" value="${esc(STATE.view.query||'')}">
       <select id="filter-role">
         <option value="">All roles</option>
         <option value="retail" ${roleFilter==='retail'?'selected':''}>Retail Broker</option>
