@@ -102,6 +102,16 @@ date charter).
   sono indipendenti). Una pratica il cui yacht non è in Fleet, o è in
   Fleet ma senza lunghezza/rig/hull compilati, non compare in questo
   grafico.
+- **Boats by Role**: due barre — numero di yacht **distinti** (per nome)
+  operati con ruolo Central Agent vs Retail Broker
+  (`boatsByRoleCounts()`). Uno stesso yacht comparso in entrambi i ruoli
+  nel tempo conta una volta in ciascuna barra — non è una ripartizione
+  della flotta, sono due conteggi indipendenti.
+- **Charters per Boat (Central Agent)**: barre verticali, nome barca
+  sull'asse orizzontale, numero di pratiche per quella barca sull'asse
+  verticale (`chartersPerCentralBoat()`, ordinate per conteggio
+  decrescente) — solo pratiche a ruolo Central Agent (in Retail lo yacht
+  è di terzi, contarne le ripetizioni non è significativo per noi).
 - **Nationality**: torta sulle top 7 nazionalità per conteggio
   (`c.clientNationality`), il resto raggruppato in "Other"
   (`nationalityCounts()`).

@@ -2299,6 +2299,33 @@ function cruisingAreaCounts(cases){
   });
   return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
 }
+/* Distinct yachts operated under each role — "Central Agent" boats (ones
+   we effectively run/manage) vs "Retail Broker" boats (someone else's
+   boat, we just brought in the client). A yacht name counted under both
+   roles across different files counts once in each — the two bars answer
+   different questions, they aren't a fleet split. */
+function boatsByRoleCounts(cases){
+  const central = new Set(), retail = new Set();
+  cases.forEach(c=>{
+    const name = (c.yachtName||'').trim();
+    if(!name) return;
+    (c.role==='central' ? central : retail).add(name);
+  });
+  return {central: central.size, retail: retail.size};
+}
+/* How many charters each individual yacht has done, Central Agent files
+   only (the role where a repeat-boat count is actually meaningful to us —
+   Retail files are someone else's boat booked once for a client). */
+function chartersPerCentralBoat(cases){
+  const counts = {};
+  cases.forEach(c=>{
+    if(c.role!=='central') return;
+    const name = (c.yachtName||'').trim();
+    if(!name) return;
+    counts[name] = (counts[name]||0)+1;
+  });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+}
 function yachtLengthBucketLabel(len){
   const b = YACHT_LENGTH_BUCKETS.find(b=>len<b.max);
   return b ? b.label : YACHT_LENGTH_BUCKETS[YACHT_LENGTH_BUCKETS.length-1].label;
@@ -2402,6 +2429,8 @@ function renderStatsCharts(dateBasis){
     natCounts,
     natByCharterMonth: nationalityByMonthMatrix(cases, 'charter', natLabels),
     natByBookingMonth: nationalityByMonthMatrix(cases, 'booking', natLabels),
+    boatsByRole: boatsByRoleCounts(cases),
+    chartersPerCentralBoat: chartersPerCentralBoat(cases),
   };
   const areaChartHeight = Math.max(220, STATE.view._chartData.areaCounts.length*32);
 
@@ -2413,6 +2442,10 @@ function renderStatsCharts(dateBasis){
     <div class="row c2">
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Popularity</span>&nbsp; Most Popular Cruising Areas</h2></div><div class="card-body"><div style="height:${areaChartHeight}px;"><canvas id="chart-areas"></canvas></div></div></div>
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Yacht Size Chosen (Rig &amp; Hull)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-yacht-size"></canvas></div></div></div>
+    </div>
+    <div class="row c2">
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Boats by Role</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-boats-role"></canvas></div></div></div>
+      <div class="card"><div class="card-head"><h2><span class="eyebrow">Fleet</span>&nbsp; Charters per Boat (Central Agent)</h2></div><div class="card-body"><div style="height:260px;"><canvas id="chart-boats-central"></canvas></div></div></div>
     </div>
     <div class="row c2">
       <div class="card"><div class="card-head"><h2><span class="eyebrow">Clients</span>&nbsp; Nationality</h2></div><div class="card-body"><div style="height:280px;"><canvas id="chart-nationality"></canvas></div></div></div>
@@ -2471,6 +2504,26 @@ function initStatsCharts(){
       }))
     },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true}, y:Object.assign({stacked:true}, countTicks)} }
+  });
+
+  const boatsRoleEl = document.getElementById('chart-boats-role');
+  if(boatsRoleEl) statsChartInstances.boatsRole = new Chart(boatsRoleEl, {
+    type:'bar',
+    data:{
+      labels: ['Central Agent','Retail Broker'],
+      datasets:[{label:'Distinct boats', data:[d.boatsByRole.central, d.boatsByRole.retail], backgroundColor:[palette[1], palette[0]]}]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:countTicks} }
+  });
+
+  const boatsCentralEl = document.getElementById('chart-boats-central');
+  if(boatsCentralEl) statsChartInstances.boatsCentral = new Chart(boatsCentralEl, {
+    type:'bar',
+    data:{
+      labels: d.chartersPerCentralBoat.map(([name])=>name),
+      datasets:[{label:'Charters', data:d.chartersPerCentralBoat.map(([,v])=>v), backgroundColor: palette[1]}]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:countTicks} }
   });
 
   const natEl = document.getElementById('chart-nationality');
