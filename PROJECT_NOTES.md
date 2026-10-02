@@ -131,8 +131,15 @@ date charter).
   Periods), la seconda il mese di firma contratto (come Booking Trend).
 
 ### Fleet (database yacht)
+**Colore calendario**: ogni yacht ha un campo `color` (hex, '' = automatico)
+scelto dal selettore colore nella colonna "Calendar Colour" di Fleet
+("Auto" per tornare al colore automatico). `colorForYacht(name)` cerca lo
+yacht via `findYacht()` e usa `y.color` se impostato, altrimenti il
+colore stabile calcolato dall'hash del nome (`autoColorForYacht()`).
+Yacht non presenti in Fleet continuano a usare solo il colore automatico.
+
 `STATE.yachts` è un elenco condiviso — stesso pattern di
-`STATE.staffInitials` — di `{id, name, length, rig, hull}`
+`STATE.staffInitials` — di `{id, name, length, rig, hull, color}`
 (`rig`: 'sail'|'motor', `hull`: 'monohull'|'catamaran'), gestito dalla
 nuova scheda **Fleet** (tabella con righe editabili in linea, "+ Add
 Yacht", × per rimuovere). Serve a non dover reinserire lunghezza/tipo ad

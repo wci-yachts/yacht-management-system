@@ -906,7 +906,7 @@ function normalizePreferenceLists(list){
   return (Array.isArray(list)?list:[]).map(normalizePreferenceList);
 }
 function normalizeYachts(list){
-  return (Array.isArray(list)?list:[]).map(y=> Object.assign({name:'', length:'', rig:'', hull:''}, y, {id: y.id || uid()}));
+  return (Array.isArray(list)?list:[]).map(y=> Object.assign({name:'', length:'', rig:'', hull:'', color:''}, y, {id: y.id || uid()}));
 }
 function findYacht(name){
   const norm = (name||'').trim().toLowerCase();
@@ -1791,11 +1791,16 @@ function renderCasesTable(cases, sortField, sortDir){
 
 /* ---- booking calendar ---- */
 const YACHT_COLOR_PALETTE = ['#3b6ea5','#4f8a41','#c9a227','#a13f2e','#6b4fa5','#2f8f7f','#b5588c','#7a8b3f','#3f5c8a','#a5763b','#5a6a76','#8a5a3f'];
-function colorForYacht(name){
+function autoColorForYacht(name){
   if(!name) return '#8a97a3';
   let hash = 0;
   for(let i=0;i<name.length;i++){ hash = (hash*31 + name.charCodeAt(i)) >>> 0; }
   return YACHT_COLOR_PALETTE[hash % YACHT_COLOR_PALETTE.length];
+}
+/* A colour picked in Fleet wins; otherwise the stable name-hash colour. */
+function colorForYacht(name){
+  const y = findYacht(name);
+  return (y && y.color) ? y.color : autoColorForYacht(name);
 }
 function dateStr(d){ return toISODate(d); }
 function dayDiffFromWeekStart(weekStartDate, iso){
@@ -2002,7 +2007,7 @@ function renderFleet(){
       <div class="card-body" style="padding:0;">
         ${yachts.length ? `
         <table>
-          <thead><tr><th>Name</th><th>Length (m)</th><th>Rig</th><th>Hull</th><th style="text-align:right;">Charter/Sale Files</th><th class="no-print"></th></tr></thead>
+          <thead><tr><th>Name</th><th>Length (m)</th><th>Rig</th><th>Hull</th><th>Calendar Colour</th><th style="text-align:right;">Charter/Sale Files</th><th class="no-print"></th></tr></thead>
           <tbody>
             ${yachts.map(y=>{
               const idx = STATE.yachts.indexOf(y);
@@ -2022,6 +2027,10 @@ function renderFleet(){
                     <option value="monohull" ${y.hull==='monohull'?'selected':''}>Monohull</option>
                     <option value="catamaran" ${y.hull==='catamaran'?'selected':''}>Catamaran</option>
                   </select>
+                </td>
+                <td style="white-space:nowrap;">
+                  <input type="color" data-yacht-color="${idx}" value="${esc(y.color || autoColorForYacht(y.name))}" title="Colour used for this yacht on the Calendar" style="width:44px;height:30px;padding:2px;vertical-align:middle;cursor:pointer;">
+                  ${y.color ? `<button class="btn btn-ghost btn-sm" data-yacht-color-reset="${idx}" title="Go back to the automatic colour" style="margin-left:6px;">Auto</button>` : `<span class="muted" style="font-size:11px;margin-left:6px;">auto</span>`}
                 </td>
                 <td style="text-align:right;" class="amount">${usageCount(y.name)}</td>
                 <td class="no-print"><button class="attach-remove" data-yacht-remove="${idx}" title="Remove yacht">×</button></td>
@@ -3965,6 +3974,15 @@ function wireGlobalEvents(){
       else persistOnly();
     });
   });
+  app.querySelectorAll('[data-yacht-color]').forEach(el=>{
+    const y = ()=>STATE.yachts[+el.dataset.yachtColor];
+    el.addEventListener('input', ()=>{ y().color = el.value; persistOnly(); });
+    el.addEventListener('change', ()=>{ y().color = el.value; persistAndRender(); });
+  });
+  app.querySelectorAll('[data-yacht-color-reset]').forEach(el=>el.addEventListener('click', ()=>{
+    STATE.yachts[+el.dataset.yachtColorReset].color = '';
+    persistAndRender();
+  }));
   app.querySelectorAll('[data-goto-fleet]').forEach(el=>el.addEventListener('click', ()=>{
     STATE.view = {tab:'fleet'};
     render();
