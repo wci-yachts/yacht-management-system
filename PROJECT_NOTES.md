@@ -397,6 +397,15 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **Second to Owner** (solo ruolo Central): riga preimpostata nascosta di
+  default (`defaultHidden`, si attiva con "↺ Second to Owner"), tra First
+  e Balance to Owner. Importo manuale (`c.secondToOwnerAmount`) e data
+  manuale (`c.saleDueDates['owner_second']`, default metà charter).
+  **Balance to Owner = rimanenza**: il suo importo è ridotto di quello del
+  Second to Owner (`secondToOwnerAmount`), con nota "less Second to Owner"
+  e avviso "Reduced by … already sent as Second to Owner" — si combina
+  con le somme di First to Owner / APA + Delivery rimossi. Il totale
+  verso l'Owner resta invariato.
 - **Payment to Central Agent — Deposit rimosso (ruolo Retail)**: stessa
   logica di APA + Delivery per il Central — togliendo la riga con la ×,
   il suo importo (`caDepositAmount`) viene sommato a "Payment to Central

@@ -780,6 +780,7 @@ function newCase(fileType){
     crewTipForwardAmount: '',
     apaBalanceClientAmount: '',
     clientInstallment2Amount: '',
+    secondToOwnerAmount: '', // optional "Second to Owner" installment (Central Agent), see buildScheduleItemsCharter()
     saleDueDates: {}, // key -> 'YYYY-MM-DD' — manually-set payment due dates, sale files only
     customPayments: [], // {id, description, reason, direction:'in'|'out', amount, due, status, paidDate}
     paymentOverrides: {}, // key -> {amount:'', note:''} — actual amount received/paid + a note, when it differs from the calculated one
@@ -1225,14 +1226,34 @@ function buildScheduleItemsCharter(c){
     cascadeNote: ownerStartCascadeNote,
     visible: !isRetail, direction:'out', ledger:true
   });
+  /* Optional "Second to Owner" (Central Agent): an extra installment
+     between First to Owner and Balance, hidden by default — restore it
+     with ↺. Its (manually entered) amount is carved OUT of Balance to
+     Owner, which becomes the remainder of the total once First and
+     Second to Owner are taken off. */
+  const secondToOwnerHidden = isPaymentHidden(c, {key:'owner_second', defaultHidden:true});
+  const secondToOwnerAmount = (!secondToOwnerHidden && c.secondToOwnerAmount!=='') ? num(c.secondToOwnerAmount) : 0;
+  const secondToOwnerDefaultDue = (c.charterStartDate && c.charterEndDate) ? addDays(c.charterStartDate, Math.round(daysBetween(c.charterStartDate, c.charterEndDate)/2)) : '';
+  list.push({
+    key:'owner_second', label:'Second to Owner', party:'To Owner',
+    amount: c.secondToOwnerAmount!=='' ? num(c.secondToOwnerAmount) : null,
+    due: dueFor('owner_second') || secondToOwnerDefaultDue,
+    note:'Optional extra installment — enter the amount; Balance to Owner is reduced by the same figure',
+    manualAmount:true, manualField:'secondToOwnerAmount', manualDue:true,
+    visible: !isRetail, defaultHidden:true, direction:'out', ledger:true
+  });
+  const balanceNoteParts = balanceIncluded.length
+    ? `${ownerBalanceVatNote}, plus ${balanceIncluded.map(i=>i.name).join(' and ')}`
+    : (ownerStartShortfall!==0 ? `${ownerBalanceVatNote}, adjusted for the First to Owner variance` : ownerBalanceVatNote);
+  const balanceCascadeWithSecond = secondToOwnerAmount>0
+    ? [balanceCascadeShown, `Reduced by ${fmtMoney(secondToOwnerAmount)} already sent as "Second to Owner" — Balance is what remains of the total`].filter(Boolean).join(' · ')
+    : balanceCascadeShown;
   list.push({
     key:'owner_balance', label:'Balance to Owner', party:'To Owner',
-    amount: ownerBalanceBase + balanceFoldedTotal + (ownerStartHidden ? 0 : ownerStartShortfall),
+    amount: ownerBalanceBase + balanceFoldedTotal + (ownerStartHidden ? 0 : ownerStartShortfall) - secondToOwnerAmount,
     due: c.charterEndDate,
-    note: balanceIncluded.length
-      ? `${ownerBalanceVatNote}, plus ${balanceIncluded.map(i=>i.name).join(' and ')}`
-      : (ownerStartShortfall!==0 ? `${ownerBalanceVatNote}, adjusted for the First to Owner variance` : ownerBalanceVatNote),
-    cascadeNote: balanceCascadeShown,
+    note: secondToOwnerAmount>0 ? `${balanceNoteParts}, less "Second to Owner"` : balanceNoteParts,
+    cascadeNote: balanceCascadeWithSecond,
     visible: !isRetail, direction:'out', ledger:true
   });
   /* Independent of the 3-tranche cascade above and of everything else in
