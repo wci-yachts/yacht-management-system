@@ -397,6 +397,15 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **Shortfall del Client Balance con deposito fuso**: quando il deposito
+  è fuso nel Client Balance (firma tardiva o × su Client Deposit), la
+  cifra attesa dal cliente è deposito + balance, quindi lo scostamento
+  (`balanceShortfall`) va misurato contro quel totale
+  (`clientBalanceDueTotal`), non contro il solo balance — altrimenti un
+  pagamento inferiore al dovuto non veniva rilevato e non scalava da APA
+  + Delivery (pratica 462: Reconciliation a −200,10 €). Attenzione: se
+  APA + Delivery era già stato spuntato come pagato, l'importo bloccato
+  nel campo resta quello vecchio finché non viene svuotato.
 - **Second to Owner** (solo ruolo Central): riga preimpostata nascosta di
   default (`defaultHidden`, si attiva con "↺ Second to Owner"), tra First
   e Balance to Owner. Importo manuale (`c.secondToOwnerAmount`) e data

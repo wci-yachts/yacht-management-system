@@ -1051,7 +1051,12 @@ function buildScheduleItemsCharter(c){
   const balanceBaseExpected = rate*0.5 + vatAmt + apaAmt + delivery;
   const balanceExpected = balanceBaseExpected + depositShortfall;
   const balanceActual = overrideAmount('client_balance');
-  const balanceShortfall = balanceActual!==null ? (balanceExpected - balanceActual) : 0;
+  /* When the deposit is folded into Client Balance (late signing, or
+     removed with the ×) the amount the client is actually asked to pay is
+     deposit + balance, so the shortfall has to be measured against THAT —
+     comparing against the balance alone hid a real shortfall entirely. */
+  const clientBalanceDueTotal = depositFolded ? (depositExpected + balanceExpected) : balanceExpected;
+  const balanceShortfall = balanceActual!==null ? (clientBalanceDueTotal - balanceActual) : 0;
 
   const depositCascadeNote = depositShortfall!==0
     ? `Client Deposit is ${fmtMoney(Math.abs(depositShortfall))} ${depositShortfall>0?'short':'over'} — added to Client Balance below`
