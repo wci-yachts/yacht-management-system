@@ -1169,33 +1169,52 @@ function buildScheduleItemsCharter(c){
      lower than expected, that difference cascades into Balance to Owner
      too, the same way a Client Deposit shortfall cascades into Client
      Balance above. */
-  const ownerStartAmount = rate*0.5 - (retailComm + caComm);
+  const ownerStartBaseAmount = rate*0.5 - (retailComm + caComm);
   const ownerStartHidden = !!(c.hiddenPayments && c.hiddenPayments['owner_start']);
+  /* Same idea one step earlier: if "APA + Delivery" is removed from a
+     Central Agent file, it's being paid together with the next owner
+     payment still on the list — First to Owner if that's kept, otherwise
+     Balance to Owner — so its amount is folded into that row. */
+  const apaDeliveryHidden = !isRetail && isPaymentHidden(c, {key:'owner_apa_delivery'});
+  const apaDeliveryAmount = (apaAmt + delivery) - (netApaShortfall>0 ? netApaShortfall : 0);
+  const apaIntoStart = apaDeliveryHidden && !ownerStartHidden;
+  const apaIntoBalance = apaDeliveryHidden && ownerStartHidden;
+  const apaLabel = '"APA + Delivery"';
+  const ownerStartAmount = ownerStartBaseAmount + (apaIntoStart ? apaDeliveryAmount : 0);
   const ownerStartActual = overrideAmount('owner_start');
   const ownerStartShortfall = (!ownerStartHidden && ownerStartActual!==null) ? (ownerStartAmount - ownerStartActual) : 0;
-  const ownerStartCascadeNote = ownerStartShortfall!==0
-    ? `First to Owner is ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'short':'over'} — added to Balance to Owner below`
-    : null;
+  const ownerStartCascadeNote = apaIntoStart
+    ? `Includes ${fmtMoney(apaDeliveryAmount)} for ${apaLabel} — both paid together`
+    : (ownerStartShortfall!==0
+      ? `First to Owner is ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'short':'over'} — added to Balance to Owner below`
+      : null);
   const ownerBalanceBase = rate*0.5 + (c.vatViaAgency ? 0 : vatAmt);
   const ownerBalanceVatNote = c.vatViaAgency ? '50% Charter Rate — VAT excluded, paid to the Shipping Agency separately' : '50% Charter Rate + VAT — due on charter end date';
+  const balanceIncluded = []; // what's been folded into Balance to Owner, for the note
+  if(ownerStartHidden) balanceIncluded.push({name:'"First to Owner — Charter Start"', amount: ownerStartBaseAmount});
+  if(apaIntoBalance) balanceIncluded.push({name:apaLabel, amount: apaDeliveryAmount});
+  const balanceFoldedTotal = balanceIncluded.reduce((s,i)=>s+i.amount, 0);
+  const balanceCascadeShown = balanceIncluded.length
+    ? `Includes ${balanceIncluded.map(i=>`${fmtMoney(i.amount)} for ${i.name}`).join(' and ')} — paid together`
+    : (ownerStartShortfall!==0 ? `Includes the ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'shortfall':'overpayment'} carried over from "First to Owner — Charter Start" (base amount would be ${fmtMoney(ownerBalanceBase)})` : null);
   list.push({
     key:'owner_start', label:'First to Owner — Charter Start', party:'To Owner',
     amount: ownerStartAmount,
     due: c.charterStartDate,
-    note:'50% Charter Rate less both brokers\' commissions',
+    note: apaIntoStart
+      ? `50% Charter Rate less both brokers' commissions, plus ${apaLabel}`
+      : '50% Charter Rate less both brokers\' commissions',
     cascadeNote: ownerStartCascadeNote,
     visible: !isRetail, direction:'out', ledger:true
   });
   list.push({
     key:'owner_balance', label:'Balance to Owner', party:'To Owner',
-    amount: ownerBalanceBase + (ownerStartHidden ? ownerStartAmount : ownerStartShortfall),
+    amount: ownerBalanceBase + balanceFoldedTotal + (ownerStartHidden ? 0 : ownerStartShortfall),
     due: c.charterEndDate,
-    note: ownerStartHidden
-      ? `${ownerBalanceVatNote}, plus "First to Owner — Charter Start"`
+    note: balanceIncluded.length
+      ? `${ownerBalanceVatNote}, plus ${balanceIncluded.map(i=>i.name).join(' and ')}`
       : (ownerStartShortfall!==0 ? `${ownerBalanceVatNote}, adjusted for the First to Owner variance` : ownerBalanceVatNote),
-    cascadeNote: ownerStartHidden
-      ? `Includes ${fmtMoney(ownerStartAmount)} for "First to Owner — Charter Start" — both paid together`
-      : (ownerStartShortfall!==0 ? `Includes the ${fmtMoney(Math.abs(ownerStartShortfall))} ${ownerStartShortfall>0?'shortfall':'overpayment'} carried over from "First to Owner — Charter Start" (base amount would be ${fmtMoney(ownerBalanceBase)})` : null),
+    cascadeNote: balanceCascadeShown,
     visible: !isRetail, direction:'out', ledger:true
   });
   /* Independent of the 3-tranche cascade above and of everything else in

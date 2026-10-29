@@ -397,6 +397,14 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **APA + Delivery rimosso (ruolo Central)**: come per "First to Owner",
+  togliere la riga con la × non fa sparire l'importo — viene sommato al
+  prossimo pagamento all'Owner ancora in lista: "First to Owner" se c'è,
+  altrimenti "Balance to Owner" (se tolte entrambe, il Balance include
+  tutte e due, con nota che le elenca). L'importo sommato è quello
+  atteso di APA + Delivery (già al netto dell'eventuale cascata di
+  shortfall). Il totale verso l'Owner resta invariato. Vedi
+  `apaIntoStart`/`apaIntoBalance` in `buildScheduleItemsCharter()`.
 - **Referral in Reconciliation**: la riga "Subcommission to Referral"
   compare nel riquadro Reconciliation (se pagata) ma con `excluded:true`
   in `buildLedger()` — resta fuori da Total Incoming/Outgoing e dal
