@@ -397,6 +397,14 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **Our Commission Balance**: se l'importo realmente inserito su "Our
+  Commission" è inferiore alla commissione dichiarata in Parties
+  (`ourCommissionGapFor()`), compare automaticamente la riga "Our
+  Commission Balance" (key `our_commission_balance`, Outgoing, Charter e
+  Sale) con la cifra restante come importo suggerito (placeholder,
+  modificabile come ogni override). Sparisce da sola se l'importo torna a
+  coincidere o lo supera; la riga Our Commission segnala lo scostamento
+  con una nota.
 - **APA + Delivery rimosso (ruolo Central)**: come per "First to Owner",
   togliere la riga con la × non fa sparire l'importo — viene sommato al
   prossimo pagamento all'Owner ancora in lista: "First to Owner" se c'è,

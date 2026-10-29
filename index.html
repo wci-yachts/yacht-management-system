@@ -1116,12 +1116,22 @@ function buildScheduleItemsCharter(c){
     cascadeNote: depositCascadeNote,
     always:true, defaultHidden: lateSign, direction:'in', ledger:true
   });
+  const ourCommissionExpected = isRetail ? retailComm : caComm;
+  const ourCommissionGap = ourCommissionGapFor(c, ourCommissionExpected);
   list.push({
     key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
-    amount: isRetail ? retailComm : caComm,
+    amount: ourCommissionExpected,
     due: depositDue,
     note:'Due when client deposit is received',
+    cascadeNote: ourCommissionGap>0 ? `${fmtMoney(ourCommissionGap)} short of the commission declared in Parties — see "Our Commission Balance" below` : null,
     always:true, direction:'out', ledger:true
+  });
+  list.push({
+    key:'our_commission_balance', label:'Our Commission Balance', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
+    amount: ourCommissionGap,
+    due: c.charterEndDate,
+    note:`Remaining part of the ${fmtMoney(ourCommissionExpected)} commission declared in Parties, not covered by Our Commission above`,
+    visible: ourCommissionGap>0, direction:'out', ledger:true
   });
   list.push({
     key:'ca_deposit', label:'Payment to Central Agent — Deposit', party:'To Central Agent',
@@ -1302,6 +1312,16 @@ function buildScheduleItemsCharter(c){
   return list;
 }
 
+/* How much of the commission declared in Parties is NOT covered by the
+   amount actually entered on the "Our Commission" row (0 when nothing has
+   been entered, or when it matches/exceeds the declared figure). Drives
+   the automatic "Our Commission Balance" line. */
+function ourCommissionGapFor(c, expected){
+  const ov = (c.paymentOverrides || {})['our_commission'];
+  if(!ov || ov.amount==='' || ov.amount===undefined || ov.amount===null) return 0;
+  const gap = expected - num(ov.amount);
+  return gap > 0.005 ? gap : 0;
+}
 function buildScheduleItemsSale(c){
   const {rate, retailComm, caComm, referralComm} = calc(c);
   const isRetail = c.role==='retail';
@@ -1320,12 +1340,22 @@ function buildScheduleItemsSale(c){
     note: isRetail ? depositLabel : `${depositLabel} less Retail Broker commission`,
     always:true, direction:'in', ledger:true
   });
+  const ourCommissionExpected = isRetail ? retailComm : caComm;
+  const ourCommissionGap = ourCommissionGapFor(c, ourCommissionExpected);
   list.push({
     key:'our_commission', label:'Our Commission', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
-    amount: isRetail ? retailComm : caComm,
+    amount: ourCommissionExpected,
     due: dueFor('our_commission'), manualDue:true,
     note:'Commission on this sale',
+    cascadeNote: ourCommissionGap>0 ? `${fmtMoney(ourCommissionGap)} short of the commission declared in Parties — see "Our Commission Balance" below` : null,
     always:true, direction:'out', ledger:true
+  });
+  list.push({
+    key:'our_commission_balance', label:'Our Commission Balance', party: isRetail ? 'Retail Broker fee' : 'Central Agent fee',
+    amount: ourCommissionGap,
+    due: dueFor('our_commission_balance'), manualDue:true,
+    note:`Remaining part of the ${fmtMoney(ourCommissionExpected)} commission declared in Parties, not covered by Our Commission above`,
+    visible: ourCommissionGap>0, direction:'out', ledger:true
   });
   list.push({
     key:'ca_deposit', label:'Payment to Central Agent — Deposit', party:'To Central Agent',
