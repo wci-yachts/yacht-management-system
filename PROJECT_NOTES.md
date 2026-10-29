@@ -397,6 +397,13 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **"Copy file data"** (barra azioni in alto nella scheda pratica): copia
+  negli appunti il JSON grezzo della pratica + la sua riga di Fleet
+  (`{case, fleetYacht}`), da incollare in chat per riprodurre un problema
+  esattamente (importi scritti a mano, righe tolte, spunte "pagato").
+  Contiene nomi di clienti/broker ma nessuna chiave o password.
+  `copyToClipboard(text, what)` ora accetta l'etichetta del toast (default
+  "Link", comportamento invariato per i link).
 - **Shortfall del Client Balance con deposito fuso**: quando il deposito
   è fuso nel Client Balance (firma tardiva o × su Client Deposit), la
   cifra attesa dal cliente è deposito + balance, quindi lo scostamento

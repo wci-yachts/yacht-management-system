@@ -3200,6 +3200,7 @@ function renderCaseDetail(id){
     <div style="display:flex;gap:8px;align-items:center;">
       ${renderStatusControl(c)}
       ${c.type!=='sale' && c.charterStartDate ? `<button class="btn btn-ghost btn-sm" data-view-in-calendar="${c.id}">View in Calendar</button>` : ''}
+      <button class="btn btn-ghost btn-sm" data-copy-case-data="${c.id}" title="Copies this file's data as text, to paste in chat when something looks wrong">Copy file data</button>
       <button class="btn btn-ghost btn-sm" onclick="window.print()">Print</button>
       ${STATE.view.confirmDelete===c.id
         ? `<button class="btn btn-sm" style="background:var(--danger);color:var(--white);" data-delete-case="${c.id}">Confirm delete — cannot be undone</button>
@@ -3968,6 +3969,14 @@ function wireGlobalEvents(){
   if(calJumpMonth) calJumpMonth.addEventListener('change', jumpToCalMonth);
   const calJumpYear = document.getElementById('cal-jump-year');
   if(calJumpYear) calJumpYear.addEventListener('change', jumpToCalMonth);
+  /* Debug aid: this file's raw data (plus its Fleet entry, which also feeds
+     the calendar colour/statistics) as JSON, so a problem can be reproduced
+     exactly elsewhere. Contains client/broker names but no keys/passwords. */
+  app.querySelectorAll('[data-copy-case-data]').forEach(el=>el.addEventListener('click', ()=>{
+    const cs = getCase(el.dataset.copyCaseData);
+    if(!cs) return;
+    copyToClipboard(JSON.stringify({case: cs, fleetYacht: findYacht(cs.yachtName)}, null, 2), 'File data');
+  }));
   app.querySelectorAll('[data-view-in-calendar]').forEach(el=>el.addEventListener('click', ()=>{
     const cs = getCase(el.dataset.viewInCalendar);
     if(!cs || !cs.charterStartDate) return;
@@ -4788,7 +4797,9 @@ function handleImportCsv(e){
   e.target.value = '';
 }
 
-function copyToClipboard(text){
+function copyToClipboard(text, what){
+  what = what || 'Link';
+  const failMsg = what==='Link' ? 'Could not copy automatically — link: ' + text : 'Could not copy automatically.';
   function fallbackCopy(){
     try{
       const ta = document.createElement('textarea');
@@ -4800,15 +4811,15 @@ function copyToClipboard(text){
       ta.select();
       const ok = document.execCommand('copy');
       document.body.removeChild(ta);
-      if(ok) showToast('Link copied to clipboard');
-      else showToast('Could not copy automatically — link: ' + text, 'error');
+      if(ok) showToast(what + ' copied to clipboard');
+      else showToast(failMsg, 'error');
     }catch(e){
-      showToast('Could not copy automatically — link: ' + text, 'error');
+      showToast(failMsg, 'error');
     }
   }
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(
-      ()=>showToast('Link copied to clipboard'),
+      ()=>showToast(what + ' copied to clipboard'),
       ()=>fallbackCopy()
     );
   }else{
