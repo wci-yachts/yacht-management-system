@@ -1431,7 +1431,8 @@ function buildLedger(c){
     if(st.status!=='paid') return;
     rows.push({
       description: p.label, reason: p.rowNote ? p.rowNote : p.note, direction: p.direction,
-      amount: p.amount, paidDate: st.paidDate, status: st.status
+      amount: p.amount, paidDate: st.paidDate, status: st.status,
+      excluded: p.key==='referral_commission'
     });
   });
   c.customPayments.forEach(cp=>{
@@ -1449,8 +1450,11 @@ function buildLedger(c){
     });
   }
   rows.sort((a,b)=> (a.paidDate||'9999-99-99').localeCompare(b.paidDate||'9999-99-99'));
-  const totalIn = rows.filter(r=>r.direction==='in').reduce((s,r)=>s+(r.amount||0),0);
-  const totalOut = rows.filter(r=>r.direction==='out').reduce((s,r)=>s+(r.amount||0),0);
+  /* Rows flagged excluded (the Referral sub-commission) are shown for
+     reference but deliberately left out of the totals and balance. */
+  const counted = rows.filter(r=>!r.excluded);
+  const totalIn = counted.filter(r=>r.direction==='in').reduce((s,r)=>s+(r.amount||0),0);
+  const totalOut = counted.filter(r=>r.direction==='out').reduce((s,r)=>s+(r.amount||0),0);
   return {rows, totalIn, totalOut, diff: totalIn-totalOut};
 }
 
@@ -3431,9 +3435,9 @@ function renderCaseDetail(id){
         <thead><tr><th>Description</th><th>Reason / Notes</th><th>Paid</th><th style="text-align:right;">Incoming (€)</th><th style="text-align:right;">Outgoing (€)</th></tr></thead>
         <tbody>
           ${ledger.rows.length ? ledger.rows.map(r=>`
-            <tr>
-              <td>${esc(r.description)}${r.isRecon?' <span class="override-flag">· manual</span>':''}</td>
-              <td class="muted">${esc(r.reason)||'—'}</td>
+            <tr${r.excluded ? ' style="background:var(--paper-dim);font-style:italic;color:var(--ink-soft);"' : ''}>
+              <td>${esc(r.description)}${r.isRecon?' <span class="override-flag">· manual</span>':''}${r.excluded?' <span class="badge badge-idle" style="font-style:normal;">not in total</span>':''}</td>
+              <td class="muted">${r.excluded ? 'Shown for reference only — not part of the Incoming/Outgoing totals above or the balance.' : (esc(r.reason)||'—')}</td>
               <td class="mono">${r.paidDate?fmtDate(r.paidDate):'—'}</td>
               <td style="text-align:right;" class="amount">${r.direction==='in' ? (r.amount===null||r.amount===undefined?'<span class="muted">not entered</span>':fmtMoney(r.amount)) : '—'}</td>
               <td style="text-align:right;" class="amount">${r.direction==='out' ? (r.amount===null||r.amount===undefined?'<span class="muted">not entered</span>':fmtMoney(r.amount)) : '—'}</td>

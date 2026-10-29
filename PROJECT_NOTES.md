@@ -397,6 +397,12 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **Referral in Reconciliation**: la riga "Subcommission to Referral"
+  compare nel riquadro Reconciliation (se pagata) ma con `excluded:true`
+  in `buildLedger()` — resta fuori da Total Incoming/Outgoing e dal
+  Balance, ed è mostrata in corsivo su fondo grigio con badge "not in
+  total" e una nota. Non influenza nemmeno il pallino rosso di
+  mismatch in Charter Files (usa lo stesso `diff`).
 - **Reconciliation** (`buildLedger()`) mostra solo i pagamenti con la
   spunta "pagato" confermata (non quelli previsti/in attesa), ordinati per
   data di pagamento effettiva — non per scadenza.
