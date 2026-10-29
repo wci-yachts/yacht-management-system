@@ -397,6 +397,11 @@ compilabile, niente è duplicato.
   Disattivare la spunta rimuove la riga dallo schedule (non è nello
   stato `always`) ma non cancella i valori compilati, che riappaiono
   se la si riattiva.
+- **Payment to Central Agent — Deposit rimosso (ruolo Retail)**: stessa
+  logica di APA + Delivery per il Central — togliendo la riga con la ×,
+  il suo importo (`caDepositAmount`) viene sommato a "Payment to Central
+  Agent — Balance" (importo suggerito = totale), con nota. Vale anche per
+  le pratiche Sale. Il totale verso il Central Agent resta invariato.
 - **Our Commission Balance**: se l'importo realmente inserito su "Our
   Commission" è inferiore alla commissione dichiarata in Parties
   (`ourCommissionGapFor()`), compare automaticamente la riga "Our

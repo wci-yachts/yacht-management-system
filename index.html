@@ -1155,12 +1155,20 @@ function buildScheduleItemsCharter(c){
     cascadeNote: clientBalanceCascadeNote,
     always:true, direction:'in', ledger:true
   });
+  /* Retail Broker: if "Payment to Central Agent — Deposit" is removed (the
+     × in the schedule), it's being paid together with the Balance, so its
+     amount is folded into "Payment to Central Agent — Balance". */
+  const caDepositAmount = rate*0.5 - retailComm;
+  const caDepositFolded = isRetail && isPaymentHidden(c, {key:'ca_deposit'});
+  const caBalanceBaseNote = c.vatViaAgency ? '50% Charter Rate + APA + Delivery — VAT excluded, paid to the Shipping Agency separately' : '50% Charter Rate + VAT + APA + Delivery';
   list.push({
     key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
-    amount: balanceExpected - (c.vatViaAgency ? vatAmt : 0),
+    amount: balanceExpected - (c.vatViaAgency ? vatAmt : 0) + (caDepositFolded ? caDepositAmount : 0),
     due: balanceDue,
-    note: c.vatViaAgency ? '50% Charter Rate + APA + Delivery — VAT excluded, paid to the Shipping Agency separately' : '50% Charter Rate + VAT + APA + Delivery',
-    cascadeNote: isRetail ? balanceCascadeNote : null,
+    note: caDepositFolded ? `${caBalanceBaseNote}, plus "Payment to Central Agent — Deposit"` : caBalanceBaseNote,
+    cascadeNote: caDepositFolded
+      ? `Includes ${fmtMoney(caDepositAmount)} for "Payment to Central Agent — Deposit" — both paid together`
+      : (isRetail ? balanceCascadeNote : null),
     visible: isRetail, direction:'out', ledger:true
   });
   list.push({
@@ -1331,6 +1339,8 @@ function buildScheduleItemsSale(c){
   const balanceFrac = 1 - depositFrac;
   const depositLabel = `${depositPct}% of Sale Price`;
   const balanceLabel = `${(balanceFrac*100).toFixed(balanceFrac*100%1===0?0:2)}% of Sale Price`;
+  const caDepositAmount = rate*depositFrac - retailComm;
+  const caDepositFolded = isRetail && isPaymentHidden(c, {key:'ca_deposit'});
   const list = [];
 
   list.push({
@@ -1373,9 +1383,10 @@ function buildScheduleItemsSale(c){
   });
   list.push({
     key:'ca_balance', label:'Payment to Central Agent — Balance', party:'To Central Agent',
-    amount: rate*balanceFrac,
+    amount: rate*balanceFrac + (caDepositFolded ? caDepositAmount : 0),
     due: dueFor('ca_balance'), manualDue:true,
-    note: balanceLabel,
+    note: caDepositFolded ? `${balanceLabel}, plus "Payment to Central Agent — Deposit"` : balanceLabel,
+    cascadeNote: caDepositFolded ? `Includes ${fmtMoney(caDepositAmount)} for "Payment to Central Agent — Deposit" — both paid together` : null,
     visible: isRetail, direction:'out', ledger:true
   });
   list.push({
