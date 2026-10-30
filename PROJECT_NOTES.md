@@ -346,11 +346,14 @@ compilabile, niente è duplicato.
     (`c.saleDueDates['client_installment2']`, stesso meccanismo già usato
     per le date manuali delle pratiche Sale — riusato qui senza modifiche)
     con default a metà strada tra la scadenza del Deposit e quella del
-    Balance. Il suo importo partecipa alla cascata sopra esattamente come
-    un pagamento extra riordinato manualmente (`installment2Amount` in
-    `netApaShortfall`) — è semplicemente la via "di serie" per lo stesso
-    scenario, senza dover aggiungere e riordinare un pagamento extra a
-    mano.
+    Balance. Il suo importo **riduce l'importo suggerito di "Client
+    Balance"** (`installment2Amount` sottratto in `clientBalanceDueTotal`,
+    con nota "Reduced by … already covered by Client 2nd Installment").
+    Lo scostamento è misurato contro questo totale già ridotto, quindi
+    non viene più sottratto una seconda volta in `netApaShortfall` (il
+    risultato su APA + Delivery resta identico). Gli importi inoltrati
+    (Central Agent, Owner) usano sempre `balanceExpected`, senza la
+    riduzione. Se la riga è nascosta con × il suo importo non conta.
 - **`hiddenPayments` di default**: `newCase('charter')` nasconde già
   all'apertura i pagamenti di fine-charter meno frequenti (crew tip, APA
   refund, le tre righe "APA Balance") — si riattivano con "↺" come

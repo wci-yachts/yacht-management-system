@@ -1055,7 +1055,9 @@ function buildScheduleItemsCharter(c){
      removed with the ×) the amount the client is actually asked to pay is
      deposit + balance, so the shortfall has to be measured against THAT —
      comparing against the balance alone hid a real shortfall entirely. */
-  const clientBalanceDueTotal = depositFolded ? (depositExpected + balanceExpected) : balanceExpected;
+  const installment2Hidden = !!(c.hiddenPayments && c.hiddenPayments['client_installment2']);
+  const installment2Amount = (!installment2Hidden && c.clientInstallment2Amount!=='') ? num(c.clientInstallment2Amount) : 0;
+  const clientBalanceDueTotal = (depositFolded ? (depositExpected + balanceExpected) : balanceExpected) - installment2Amount;
   const balanceShortfall = balanceActual!==null ? (clientBalanceDueTotal - balanceActual) : 0;
 
   const depositCascadeNote = depositShortfall!==0
@@ -1079,8 +1081,6 @@ function buildScheduleItemsCharter(c){
      This is unrelated to the separate "APA Balance" preset lines further
      down, which are an independent, always-end-of-charter settlement. */
   const dueFor = key => (c.saleDueDates && c.saleDueDates[key]) || '';
-  const installment2Hidden = !!(c.hiddenPayments && c.hiddenPayments['client_installment2']);
-  const installment2Amount = (!installment2Hidden && c.clientInstallment2Amount!=='') ? num(c.clientInstallment2Amount) : 0;
   const installment2DefaultDue = (depositDue && balanceDue) ? addDays(depositDue, Math.round(daysBetween(depositDue, balanceDue)/2)) : '';
   const orderArr = Array.isArray(c.paymentOrder) ? c.paymentOrder : [];
   const apaDeliveryOrderIdx = orderArr.indexOf('fixed:owner_apa_delivery');
@@ -1092,7 +1092,7 @@ function buildScheduleItemsCharter(c){
       return apaDeliveryOrderIdx===-1 ? true : cpIdx < apaDeliveryOrderIdx;
     })
     .reduce((sum,cp)=> sum + (cp.amount!=='' ? num(cp.amount) : 0), 0);
-  const netApaShortfall = Math.max(0, balanceShortfall - extraInBeforeApaDelivery - installment2Amount);
+  const netApaShortfall = Math.max(0, balanceShortfall - extraInBeforeApaDelivery);
   const apaCascadeNote = netApaShortfall>0
     ? `Reduced by ${fmtMoney(netApaShortfall)} — the client's payments received so far are still short by that amount`
     : null;
@@ -1101,18 +1101,21 @@ function buildScheduleItemsCharter(c){
      folded in (late signing, or manually removed from this file), the
      normal 50% balance otherwise. What we forward on (ca_balance,
      owner_apa_delivery below) always uses the normal, unmerged balanceExpected. */
-  const clientBalanceAmount = depositFolded ? (depositExpected + balanceExpected) : balanceExpected;
+  const clientBalanceAmount = clientBalanceDueTotal;
   const clientBalanceDue = (depositFolded && lateSign) ? c.contractSignDate : balanceDue;
   const clientBalanceNote = !depositFolded
     ? '50% Charter Rate + VAT + APA + Delivery'
     : lateSign
       ? 'Full Charter Rate + VAT + APA + Delivery — due on contract signing (signed less than a month before departure, so there is no separate deposit)'
       : 'Full Charter Rate + VAT + APA + Delivery — includes the Client Deposit';
-  const clientBalanceCascadeNote = !depositFolded
+  const clientBalanceCascadeBase = !depositFolded
     ? balanceCascadeNote
     : lateSign
       ? null
       : `Includes ${fmtMoney(depositExpected)} for "Client Deposit" — both paid together`;
+  const clientBalanceCascadeNote = installment2Amount>0
+    ? [clientBalanceCascadeBase, `Reduced by ${fmtMoney(installment2Amount)} already covered by "Client 2nd Installment"`].filter(Boolean).join(' · ')
+    : clientBalanceCascadeBase;
 
   list.push({
     key:'client_deposit', label:'Client Deposit', party:'From Client',
